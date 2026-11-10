@@ -1,4 +1,4 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const express = require('express');
 const app = express();
@@ -6,25 +6,35 @@ app.get('/', (req, res) => res.send('KAIROS BOT ACTIVO ✅'));
 app.listen(process.env.PORT || 3000);
 
 async function start() {
+  const { version } = await fetchLatestBaileysVersion();
   const { state, saveCreds } = await useMultiFileAuthState('auth');
-  const sock = makeWASocket({ logger: pino({ level: 'silent' }), auth: state });
-
+  const sock = makeWASocket({ version, logger: pino({ level: 'silent' }), auth: state, browser: ["Kairos Bot", "Chrome", "1.0"] });
   sock.ev.on('creds.update', saveCreds);
 
-  // Si no está vinculado, pide código de emparejamiento
-  if (!sock.authState.creds.registered) {
-    setTimeout(async () => {
-      try {
-        const code = await sock.requestPairingCode('15702171840');
-        console.log('====================================');
-        console.log('TU CODIGO DE VINCULACION ES: ' + code);
-        console.log('====================================');
-      } catch (e) { console.log('Error pidiendo codigo:', e.message); }
-    }, 3000);
-  }
+  let codigoPedido = false;
 
-  sock.ev.on('connection.update', (u) => {
+  sock.ev.on('connection.update', async (u) => {
     const { connection, lastDisconnect } = u;
+    console.log('Estado conexion:', connection);
+
+    // Cuando ya está conectando, pedimos el código UNA sola vez
+    if (connection === 'connecting' && !sock.authState.creds.registered && !codigoPedido) {
+      codigoPedido = true;
+      // Esperamos 5 segundos a que abra el socket
+      setTimeout(async () => {
+        try {
+          const code = await sock.requestPairingCode('15702171840');
+          console.log('====================================');
+          console.log('CODIGO BUENO USA ESTE: ' + code);
+          console.log('TIENES 30 SEGUNDOS PARA PONERLO');
+          console.log('====================================');
+        } catch (e) {
+          console.log('Fallo codigo, reintentando...', e.message);
+          codigoPedido = false; // para que lo intente de nuevo
+        }
+      }, 5000);
+    }
+
     if (connection === 'open') console.log('BOT LISTO ✅ CONECTADO');
     if (connection === 'close') {
       const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
