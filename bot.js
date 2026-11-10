@@ -7,13 +7,25 @@ app.listen(process.env.PORT || 3000);
 
 async function start() {
   const { state, saveCreds } = await useMultiFileAuthState('auth');
-  const sock = makeWASocket({ logger: pino({ level: 'silent' }), printQRInTerminal: true, auth: state });
+  const sock = makeWASocket({ logger: pino({ level: 'silent' }), auth: state });
 
   sock.ev.on('creds.update', saveCreds);
 
+  // Si no está vinculado, pide código de emparejamiento
+  if (!sock.authState.creds.registered) {
+    setTimeout(async () => {
+      try {
+        const code = await sock.requestPairingCode('15702171840');
+        console.log('====================================');
+        console.log('TU CODIGO DE VINCULACION ES: ' + code);
+        console.log('====================================');
+      } catch (e) { console.log('Error pidiendo codigo:', e.message); }
+    }, 3000);
+  }
+
   sock.ev.on('connection.update', (u) => {
     const { connection, lastDisconnect } = u;
-    if (connection === 'open') console.log('BOT LISTO ✅');
+    if (connection === 'open') console.log('BOT LISTO ✅ CONECTADO');
     if (connection === 'close') {
       const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
       if (shouldReconnect) start();
