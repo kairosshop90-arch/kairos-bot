@@ -1,54 +1,40 @@
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const express = require('express');
+const QRCode = require('qrcode');
 const app = express();
-app.get('/', (req, res) => res.send('KAIROS BOT ACTIVO ✅'));
+let ultimoQR = '';
+let estado = 'Iniciando...';
+
+app.get('/', (req, res) => res.send('KAIROS BOT ACTIVO ✅ <br><br><a href="/qr">VER QR AQUI</a>'));
+app.get('/qr', async (req, res) => {
+  if (!ultimoQR) return res.send(`<h1>${estado}</h1><p>Recarga en 10 segundos...</p>`);
+  const img = await QRCode.toDataURL(ultimoQR);
+  res.send(`<h1>ESCANEA ESTE QR CON WHATSAPP</h1><img src="${img}" style="width:300px"><br><p>${estado}</p><p>Recarga si ya vencio</p>`);
+});
 app.listen(process.env.PORT || 3000);
 
 async function start() {
   const { version } = await fetchLatestBaileysVersion();
-  const { state, saveCreds } = await useMultiFileAuthState('auth');
+  const { state, saveCreds } = await useMultiFileAuthState('auth3');
   const sock = makeWASocket({ version, logger: pino({ level: 'silent' }), auth: state, browser: ["Kairos Bot", "Chrome", "1.0"] });
   sock.ev.on('creds.update', saveCreds);
-
-  let codigoPedido = false;
-
   sock.ev.on('connection.update', async (u) => {
-    const { connection, lastDisconnect } = u;
-    console.log('Estado conexion:', connection);
-
-    // Cuando ya está conectando, pedimos el código UNA sola vez
-    if (connection === 'connecting' && !sock.authState.creds.registered && !codigoPedido) {
-      codigoPedido = true;
-      // Esperamos 5 segundos a que abra el socket
-      setTimeout(async () => {
-        try {
-          const code = await sock.requestPairingCode('15702171840');
-          console.log('====================================');
-          console.log('CODIGO BUENO USA ESTE: ' + code);
-          console.log('TIENES 30 SEGUNDOS PARA PONERLO');
-          console.log('====================================');
-        } catch (e) {
-          console.log('Fallo codigo, reintentando...', e.message);
-          codigoPedido = false; // para que lo intente de nuevo
-        }
-      }, 5000);
-    }
-
-    if (connection === 'open') console.log('BOT LISTO ✅ CONECTADO');
+    const { connection, lastDisconnect, qr } = u;
+    estado = 'Conexion: ' + connection;
+    if (qr) { ultimoQR = qr; estado = 'QR LISTO - ESCANEALO RAPIDO'; }
+    if (connection === 'open') { estado = 'BOT LISTO CONECTADO ✅'; ultimoQR = ''; }
     if (connection === 'close') {
       const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
       if (shouldReconnect) start();
     }
   });
-
   sock.ev.on('messages.upsert', async ({ messages }) => {
     const m = messages[0];
     if (!m.message || m.key.fromMe) return;
     const text = (m.message.conversation || m.message.extendedTextMessage?.text || '').toLowerCase();
     const from = m.key.remoteJid;
     const send = async (t) => { await sock.sendMessage(from, { text: t }); };
-
     if (text.includes('hola') || text.includes('menu') || text.includes('catalogo') || text === '1') {
       await send(`👑 *KAIROS SHOP* 👑\n\n✅ Pedestal 18" - *23 USD*\n✅ J10 Recargable - *40 USD*\n✅ F6 SACO - *35 USD*\n✅ Bee F6 - *32 USD* / Mayor: 30 USD\n✅ F39 Solar - *42 USD*\n✅ F22 SACO - *70 USD*\n\nNuevo en caja + Garantía 15 días\nMensajería en toda La Habana\n\n¿Cuál quieres? Escribe el modelo, ej: *J10*`);
       return;
