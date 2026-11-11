@@ -1,5 +1,3 @@
-
-
 const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion, DisconnectReason } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const express = require('express');
@@ -17,11 +15,11 @@ app.get('/qr', async (req, res) => {
 app.listen(process.env.PORT || 3000);
 
 // ===== CONFIG KAIROS 👑 =====
-let TASA_MN = 400; // Cambias con: tasa 450
+let TASA_MN = 400;
 let CONTADOR_VALE = 1;
-let pedidos = {}; // memoria por cliente
+let pedidos = {};
 
-const GROUP_ID = "120207xxx@g.us"; // 👑 PON TU ID DE GRUPO VIEJO AQUÍ
+const ADMIN_NUMERO = "5356947882@s.whatsapp.net"; // TU NUMERO 56947882 👑
 
 const MENSAJERIA = [
   { zona: "san miguel", precio: 1000 },
@@ -109,34 +107,36 @@ async function start() {
     const rawText = (m.message.conversation || m.message.extendedTextMessage?.text || '');
     const text = rawText.toLowerCase().trim();
     const from = m.key.remoteJid;
+
+    // 👑 SOLO PRIVADO - Si es grupo, ignorar
+    if (from.endsWith('@g.us')) return;
+
     console.log('ID DEL CHAT:', from);
     const send = async (t) => { await sock.sendMessage(from, { text: t }); };
 
-    // 👑 COMANDOS SOLO TUYOS - TASA MANUAL
-    if (text.startsWith('tasa ')) {
+    // 👑 COMANDOS SOLO TUYOS - SOLO ADMIN PUEDE CAMBIAR TASA
+    const esAdmin = (from === ADMIN_NUMERO);
+    if (text.startsWith('tasa ') && esAdmin) {
       let valor = parseInt(text.replace('tasa ', ''));
       if (!isNaN(valor)) { TASA_MN = valor; await send(`✅ Listo 👑 Tasa puesta: ${TASA_MN} CUP\nAhora 1 USD = ${TASA_MN} CUP`); return; }
     }
-    if (text === 'tasa actual') { await send(`Tasa actual: ${TASA_MN} CUP\nModo: MANUAL`); return; }
+    if (text === 'tasa actual' && esAdmin) { await send(`Tasa actual: ${TASA_MN} CUP\nModo: MANUAL`); return; }
 
     // ===== FLUJO =====
     let ped = pedidos[from] || { paso: 'inicio' };
 
-    // 1. SALUDO / CATALOGO
     if (text.includes('hola') || text.includes('menu') || text.includes('catalogo') || text === '1') {
       pedidos[from] = { paso: 'catalogo' };
       await send(`Hola, bendecido día para UD 🙏\nBienvenido a KAIROS SHOP 👑\n\n📋 CATÁLOGO:\n✅ Pedestal 18" - *23 USD*\n✅ J10 Recargable - *40 USD*\n✅ F6 SACO - *35 USD*\n✅ Bee F6 - *32 USD* / Mayor: 30 USD\n✅ F39 Solar - *42 USD*\n✅ F22 SACO - *70 USD*\n\nNuevo en caja + Garantía 15 días\nMensajería en toda La Habana\n\n¿Cuál quieres? Escribe el modelo, ej: *J10*`);
       return;
     }
 
-    // 2. ELEGIR EQUIPO
     if (text.includes('j10')) { pedidos[from] = { paso: 'elegido', producto: 'J10 Recargable', precio: 40 }; await send(`✅ *J10 RECARGABLE - 40 USD*\nSolar + Bluetooth + Luz + Radio FM\nBatería 20.000 mAh, hasta 12h\n\n¿Desea ver otros equipos?\n\n1. Sí, ver otros\n2. No, ya escogí / Quiero pedir este`); return; }
     if (text.includes('f39')) { pedidos[from] = { paso: 'elegido', producto: 'F39 Solar', precio: 42 }; await send(`✅ *F39 SOLAR - 42 USD*\nSolar + Bluetooth + Luz\n\n¿Desea ver otros equipos?\n\n1. Sí, ver otros\n2. No, ya escogí`); return; }
     if (text.includes('f22')) { pedidos[from] = { paso: 'elegido', producto: 'F22 SACO', precio: 70 }; await send(`✅ *F22 SACO - 70 USD*\n\n¿Desea ver otros equipos?\n\n1. Sí, ver otros\n2. No, ya escogí`); return; }
     if (text.includes('f6')) { pedidos[from] = { paso: 'elegido', producto: 'F6 SACO', precio: 35 }; await send(`✅ *F6 SACO - 35 USD*\n✅ Bee F6 - 32 USD / Mayor: 30 USD\n\n¿Desea ver otros equipos?\n\n1. Sí, ver otros\n2. No, ya escogí`); return; }
     if (text.includes('pedestal') || text === '18') { pedidos[from] = { paso: 'elegido', producto: 'Pedestal 18"', precio: 23 }; await send(`✅ *Pedestal 18" - 23 USD*\n\n¿Desea ver otros equipos?\n\n1. Sí, ver otros\n2. No, ya escogí`); return; }
 
-    // 3. VER OTROS / YA ESCOGI
     if (ped.paso === 'elegido' && text === '1') {
       await send(`📋 CATÁLOGO:\n✅ Pedestal 18" - *23 USD*\n✅ J10 - *40 USD*\n✅ F6 - *35 USD*\n✅ F39 - *42 USD*\n✅ F22 - *70 USD*\n\nEscribe el modelo:`); return;
     }
@@ -145,7 +145,6 @@ async function start() {
       await send(`Perfecto 👑 Vamos a apartar tu *${ped.producto} - ${ped.precio} USD*\n\nPásame tu dirección exacta para calcular la mensajería 📍\nEj: *San Miguel, Entrincado*`); return;
     }
 
-    // 4. DIRECCION -> MENSAJERIA
     if (ped.paso === 'direccion') {
       let precioMens = calcularMensajeria(rawText);
       if (precioMens === null) { await send(`No encontré esa zona 😅\nEscríbeme tu municipio + reparto, ej: *Guanabacoa, El Roble*`); return; }
@@ -154,7 +153,6 @@ async function start() {
       return;
     }
 
-    // 5. PAGO -> NOTA
     if (ped.paso === 'pago' && ['1','2','3'].includes(text)) {
       if (text === '1') ped.pago = `${ped.precio} USD + ${ped.mensajeria} CUP mensajería`;
       if (text === '2') ped.pago = `${ped.precio} Euros + ${ped.mensajeria} CUP mensajería`;
@@ -164,7 +162,6 @@ async function start() {
       return;
     }
 
-    // 6. NOTA -> NOMBRE Y TELEFONO
     if (ped.paso === 'nota') {
       ped.nota = (text === 'no' ? 'Sin nota' : rawText);
       ped.paso = 'datos'; pedidos[from] = ped;
@@ -172,7 +169,6 @@ async function start() {
       return;
     }
 
-    // 7. DATOS -> VALE + ENVIAR AL GRUPO
     if (ped.paso === 'datos') {
       ped.nombre = rawText;
       let numeroVale = `KAIROS-${String(CONTADOR_VALE).padStart(3, '0')}`;
@@ -180,16 +176,15 @@ async function start() {
 
       await send(`✅ Pedido confirmado 👑\n\n🧾 Su número de vale es: *${numeroVale}*\nGuarde este número para reclamar su pedido.\n\n📦 Producto: ${ped.producto} - ${ped.precio} USD\n💰 Pago: ${ped.pago}\n🚚 Mensajería: ${ped.mensajeria} CUP\n📍 Dirección: ${ped.direccion}\n📝 Nota: ${ped.nota}\n\nGracias por comprar en KAIROS SHOP 👑`);
 
-      // Mandar al grupo
+      // 👑 AVISO PARA TI AL PRIVADO - 56947882
       try {
-        await sock.sendMessage(GROUP_ID, { text: `🔔 *NUEVO VALE ${numeroVale}*\n\n👤 Cliente: ${ped.nombre}\n📍 Dirección: ${ped.direccion}\n\n📦 Producto: ${ped.producto}\n💰 Pago: ${ped.pago}\n🚚 Mensajería: ${ped.mensajeria} CUP\n\n📝 NOTA: ${ped.nota}\n\n¡Atender! 👑` });
-      } catch(e) { console.log('Error grupo', e); }
+        await sock.sendMessage(ADMIN_NUMERO, { text: `🔔 *NUEVO VALE ${numeroVale}*\n\n👤 Cliente: ${ped.nombre}\n📱 Chat: ${from}\n📍 Dirección: ${ped.direccion}\n\n📦 Producto: ${ped.producto}\n💰 Pago: ${ped.pago}\n🚚 Mensajería: ${ped.mensajeria} CUP\n\n📝 NOTA: ${ped.nota}\n\n¡Atender! 👑` });
+      } catch(e) { console.log('Error aviso admin', e); }
 
       delete pedidos[from];
       return;
     }
 
-    // Compatibilidad con tu comando viejo "SI"
     if (text.includes('si')) { await send(`¡Perfecto! ✅ Te lo aparto.\nPásame tu nombre, teléfono y dirección exacta para la mensajería.`); return; }
   });
 }
