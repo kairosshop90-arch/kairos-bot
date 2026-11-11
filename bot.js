@@ -109,6 +109,7 @@ async function start() {
     const rawText = (m.message.conversation || m.message.extendedTextMessage?.text || '');
     const text = rawText.toLowerCase().trim();
     const from = m.key.remoteJid;
+    console.log('ID DEL CHAT:', from);
     const send = async (t) => { await sock.sendMessage(from, { text: t }); };
 
     // 👑 COMANDOS SOLO TUYOS - TASA MANUAL
