@@ -15,11 +15,37 @@ app.get('/qr', async (req, res) => {
 app.listen(process.env.PORT || 3000);
 
 // ===== CONFIG KAIROS 👑 =====
-let TASA_MN = 400;
+let TASA_SITIO = 915; // Lo que dice eltoque.com
+let TASA_MN = 925; // Sitio + 10 = lo que cobras tu
+let MODO = "auto"; // auto o manual
 let CONTADOR_VALE = 1;
 let pedidos = {};
 
-const ADMIN_NUMERO = "5356947882@s.whatsapp.net"; // TU NUMERO 56947882 👑
+const ADMIN_NUMERO = "5356947882@s.whatsapp.net";
+
+// ===== TASA AUTOMATICA ELTOQUE.COM CADA 2 HORAS =====
+function getTasaFinal() {
+  return TASA_MN;
+}
+
+async function verificarTasaUSD() {
+  if (MODO === "manual") {
+    console.log(`⏸️ Manual: ${TASA_MN} CUP, no verifico eltoque.com`);
+    return;
+  }
+  try {
+    const res = await fetch("https://api.eltoque.com/v1/trmi");
+    const data = await res.json();
+    const usd = data.find(m => m.currency === "USD");
+    if (usd) {
+      TASA_SITIO = usd.price || usd.valor;
+      TASA_MN = TASA_SITIO + 10;
+      console.log(`✅ Auto 2h eltoque.com: Sitio ${TASA_SITIO} + 10 = ${TASA_MN} CUP`);
+    }
+  } catch(e) { console.log("Sin internet, mantengo tasa:", TASA_MN); }
+}
+setInterval(verificarTasaUSD, 7200000); // 2 HORAS
+verificarTasaUSD();
 
 const MENSAJERIA = [
   { zona: "san miguel", precio: 1000 },
@@ -107,20 +133,23 @@ async function start() {
     const rawText = (m.message.conversation || m.message.extendedTextMessage?.text || '');
     const text = rawText.toLowerCase().trim();
     const from = m.key.remoteJid;
-
-    // 👑 SOLO PRIVADO - Si es grupo, ignorar
     if (from.endsWith('@g.us')) return;
-
     console.log('ID DEL CHAT:', from);
     const send = async (t) => { await sock.sendMessage(from, { text: t }); };
 
     // 👑 COMANDOS SOLO TUYOS - SOLO ADMIN PUEDE CAMBIAR TASA
     const esAdmin = (from === ADMIN_NUMERO);
     if (text.startsWith('tasa ') && esAdmin) {
-      let valor = parseInt(text.replace('tasa ', ''));
-      if (!isNaN(valor)) { TASA_MN = valor; await send(`✅ Listo 👑 Tasa puesta: ${TASA_MN} CUP\nAhora 1 USD = ${TASA_MN} CUP`); return; }
+      let valorTexto = text.replace('tasa ', '').trim();
+      if (valorTexto === 'auto') {
+        MODO = "auto";
+        await verificarTasaUSD();
+        await send(`✅ Automático ON 👑\nAhora reviso eltoque.com cada 2 horas\nTasa actual: ${TASA_MN} CUP (Sitio ${TASA_SITIO} + 10)`); return;
+      }
+      let valor = parseInt(valorTexto);
+      if (!isNaN(valor)) { MODO = "manual"; TASA_MN = valor; await send(`✅ Listo 👑 Tasa manual puesta: ${TASA_MN} CUP\nAhora 1 USD = ${TASA_MN} CUP\nPara volver a auto escribe: tasa auto`); return; }
     }
-    if (text === 'tasa actual' && esAdmin) { await send(`Tasa actual: ${TASA_MN} CUP\nModo: MANUAL`); return; }
+    if (text === 'tasa actual' && esAdmin) { await send(`Tasa actual: ${TASA_MN} CUP\nModo: ${MODO}\nSitio eltoque.com: ${TASA_SITIO} CUP`); return; }
 
     // ===== FLUJO =====
     let ped = pedidos[from] || { paso: 'inicio' };
@@ -173,14 +202,10 @@ async function start() {
       ped.nombre = rawText;
       let numeroVale = `KAIROS-${String(CONTADOR_VALE).padStart(3, '0')}`;
       CONTADOR_VALE++;
-
       await send(`✅ Pedido confirmado 👑\n\n🧾 Su número de vale es: *${numeroVale}*\nGuarde este número para reclamar su pedido.\n\n📦 Producto: ${ped.producto} - ${ped.precio} USD\n💰 Pago: ${ped.pago}\n🚚 Mensajería: ${ped.mensajeria} CUP\n📍 Dirección: ${ped.direccion}\n📝 Nota: ${ped.nota}\n\nGracias por comprar en KAIROS SHOP 👑`);
-
-      // 👑 AVISO PARA TI AL PRIVADO - 56947882
       try {
         await sock.sendMessage(ADMIN_NUMERO, { text: `🔔 *NUEVO VALE ${numeroVale}*\n\n👤 Cliente: ${ped.nombre}\n📱 Chat: ${from}\n📍 Dirección: ${ped.direccion}\n\n📦 Producto: ${ped.producto}\n💰 Pago: ${ped.pago}\n🚚 Mensajería: ${ped.mensajeria} CUP\n\n📝 NOTA: ${ped.nota}\n\n¡Atender! 👑` });
       } catch(e) { console.log('Error aviso admin', e); }
-
       delete pedidos[from];
       return;
     }
