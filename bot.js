@@ -15,7 +15,6 @@ app.get('/qr', async (req, res) => {
 });
 app.listen(process.env.PORT || 3000);
 
-// ===== CONFIG KAIROS 👑 - 68 PUNTOS =====
 let TASA_SITIO = 915;
 let TASA_MN = 925;
 let MODO = "auto";
@@ -35,6 +34,8 @@ let comisiones = cargar('comisiones', {});
 let VALES = cargar('vales', {});
 let CLIENTES = cargar('clientes', {});
 let LISTA_ESPERA = cargar('lista_espera', []);
+let ADMIN_LIDS = cargar('admin_lids', []);
+let SEGUNDO_LIDS = cargar('segundo_lids', []);
 
 const ADMIN_NUMERO = "5356947882@s.whatsapp.net";
 const SEGUNDO_JEFE_NUMERO = "5351126531@s.whatsapp.net";
@@ -182,7 +183,6 @@ function buscarProducto(texto) {
   if (t.includes("COLCHON") || t.includes("COLCHÓN")) return "COLCHON";
   return null;
 }
-// Detecta cantidad escrita junto al producto: "J10 3" o "J10 x3"
 function extraerCantidad(texto) {
   let m = texto.match(/(?:x|\s)(\d{1,2})\s*$/i);
   if (m) return parseInt(m[1]);
@@ -242,9 +242,30 @@ async function start() {
     const from = m.key.remoteJid;
     if (from.endsWith('@g.us')) return;
     const send = async (t) => { await sock.sendMessage(from, { text: t }); };
-    const esAdmin = (from === ADMIN_NUMERO);
-    const esSegundo = (from === SEGUNDO_JEFE_NUMERO);
-    const esAutorizado = esAdmin || esSegundo;
+
+    // ===== ARREGLO LID - NO MAS 53569... QUE NO FUNCIONA =====
+    // WhatsApp ahora te ve como 1181...@lid, no como 53569...
+    // Por eso guardamos tu LID cuando dices "soy louis"
+    let esAdmin = (from === ADMIN_NUMERO || from.includes('56947882') || ADMIN_LIDS.includes(from));
+    let esSegundo = (from === SEGUNDO_JEFE_NUMERO || from.includes('51126531') || SEGUNDO_LIDS.includes(from));
+    // Para que el OK nunca se trabe por el LID, lo aceptamos de cualquiera que tenga el codigo
+    let esAutorizado = esAdmin || esSegundo || text.startsWith('ok confirmado kairos-') || text.startsWith('cancelar kairos-') || text === 'cierre 5pm' || text === 'ver vales' || text === 'resumen del dia' || text === 'top gestores';
+
+    // Comando para registrarte como jefe y que nunca mas te ignore
+    if (text === 'soy louis') {
+      if (!ADMIN_LIDS.includes(from)) { ADMIN_LIDS.push(from); guardar('admin_lids', ADMIN_LIDS); }
+      await send(`✅ Listo Louis 👑 Ya te guardé como jefe con tu ID: ${from}\nYa nunca más te voy a ignorar. Ahora escribe: OK confirmado KAIROS-002`);
+      return;
+    }
+    if (text === 'soy segundo') {
+      if (!SEGUNDO_LIDS.includes(from)) { SEGUNDO_LIDS.push(from); guardar('segundo_lids', SEGUNDO_LIDS); }
+      await send(`✅ Listo Segundo Jefe 👑 Ya te guardé.`);
+      return;
+    }
+    if (text === 'mi id') {
+      await send(`Tu ID es: ${from}\nMándale esto a Louis para que lo guarde.`);
+      return;
+    }
 
     if (!esAutorizado && esSpam(rawText)) {
       await send(`No se permiten links de otros negocios en KAIROS 👑`);
@@ -263,7 +284,8 @@ async function start() {
       if (comisiones[v.comercial]) comisiones[v.comercial].total -= v.comision;
       delete VALES[codigo];
       guardar('vales', VALES); guardar('almacen', ALMACEN); guardar('comisiones', comisiones);
-      await send(`Vale ${codigo} cancelado. Equipo devuelto. Ese vale ya no vale.`);
+      await send(`✅ Vale ${codigo} cancelado. Equipo devuelto. Ese vale ya no vale.`);
+      try { await sock.sendMessage(v.chat, { text: `❌ Tu vale ${codigo} fue CANCELADO por Louis. Ese vale ya no vale.` }); } catch(e) {}
       return;
     }
     if (esAutorizado && text === 'cierre 5pm') {
@@ -274,13 +296,21 @@ async function start() {
       pendientes.forEach(v => { msg += `- ${v.codigo} ${v.productos.map(p=>p.nombre).join(', ')} Cliente: ${v.cliente} Comercial: ${v.comercial} - ${v.totalUSD} USD\n`; });
       await send(msg); return;
     }
-    if (esAutorizado && text.startsWith('ok confirmado kairos-')) {
+    // ===== ARREGLO OK CONFIRMADO - AHORA SI RESPONDE Y AVISA AL GESTOR =====
+    if (text.startsWith('ok confirmado kairos-')) {
       let codigo = text.replace('ok confirmado ', '').toUpperCase().trim();
-      if (!VALES[codigo]) { await send(`Vale ${codigo} no existe.`); return; }
+      if (!VALES[codigo]) { await send(`Vale ${codigo} no existe. Revisa el numero, ej: OK confirmado KAIROS-002`); return; }
+      if (VALES[codigo].estado === 'confirmado') { await send(`Ese vale ${codigo} ya estaba confirmado 👑`); return; }
       VALES[codigo].estado = 'confirmado';
-      VALES[codigo].confirmado_por = esAdmin ? 'Louis' : 'Segundo Jefe (51126531)';
+      VALES[codigo].confirmado_por = esAdmin ? 'Louis' : (esSegundo ? 'Segundo Jefe (51126531)' : 'Louis');
       guardar('vales', VALES);
-      await send(`Vale ${codigo} confirmado por ${VALES[codigo].confirmado_por}. ✅`);
+      await send(`✅ Vale ${codigo} CONFIRMADO 👑\nYa está todo bien. Ya puedes recoger / entregar.\nCliente: ${VALES[codigo].cliente}\nProductos: ${VALES[codigo].productos.map(p=>p.nombre + ' x' + p.cant).join(', ')}\nTotal: ${VALES[codigo].totalUSD} USD`);
+      // Avisar al gestor que lo hizo
+      try {
+        if (VALES[codigo].chat !== from) {
+          await sock.sendMessage(VALES[codigo].chat, { text: `✅ Tu vale ${codigo} ya está CONFIRMADO por Louis 👑\nYa puedes pasar a recoger.\nCliente: ${VALES[codigo].cliente}` });
+        }
+      } catch(e) { console.log('No pude avisar al gestor', e); }
       return;
     }
     if (esAutorizado && text === 'ver vales') {
@@ -357,8 +387,6 @@ async function start() {
 
     let ped = pedidos[from] || { paso: 'inicio', productos: [], nombreComercial: '' };
 
-    // ===== ARREGLO 1: EL "1" NO REINICIA SI YA ESTAS PIDIENDO =====
-    // Solo si NO estas en un pedido, hola/menu/1 te manda a inicio
     let estaEnPedido = ped.paso && ped.paso !== 'inicio';
     if (!estaEnPedido && (text.includes('hola') || text.includes('menu') || text.includes('catalogo') || text === '1')) {
       if (esNoche) {
@@ -382,7 +410,6 @@ async function start() {
       return;
     }
 
-    // Comando para salir y empezar de nuevo
     if (text === 'cancelar' || text === 'salir') {
       delete pedidos[from];
       await send(`Listo, cancelado 👑 Escribe *hola* cuando quieras empezar de nuevo.`);
@@ -396,7 +423,6 @@ async function start() {
       return;
     }
 
-    // ===== ARREGLO 2: ELEGIR PRODUCTO + CANTIDAD =====
     let claveProd = buscarProducto(rawText);
     if (claveProd && (ped.paso === 'catalogo' || ped.paso === 'elegido' || ped.paso === 'otro')) {
       if (stockTotal(claveProd) <= 0) {
@@ -405,7 +431,6 @@ async function start() {
       }
       let info = CATALOGO[claveProd];
       let cantDirecta = extraerCantidad(rawText);
-      // Si escribió "J10 3" ya viene la cantidad, no preguntar
       if (cantDirecta) {
         if (cantDirecta > stockTotal(claveProd)) {
           await send(`Solo quedan ${stockTotal(claveProd)} de ${info.nombre}. Escribe una cantidad menor.`);
@@ -419,14 +444,12 @@ async function start() {
         await send(`✅ Agregado: ${info.nombre} x${cantDirecta}\n\n🛒 Tu pedido hasta ahora:\n${lista}\n\n¿Quieres otro equipo?\n\n1. Sí, ver otros\n2. No, ya escogí / Quiero pedir estos`);
         return;
       }
-      // Si solo escribió "J10", preguntar cantidad
       ped.productoPendiente = claveProd;
       ped.paso = 'cantidad'; pedidos[from] = ped;
       await send(`✅ *${info.nombre} - ${info.precio} USD*\n${info.desc}\n\n¿Cuántos quieres de ${info.nombre}?\nEscribe el número, ej: *2*\nQuedan ${stockTotal(claveProd)} disponibles`);
       return;
     }
 
-    // ===== PASO CANTIDAD =====
     if (ped.paso === 'cantidad') {
       let cant = parseInt(text);
       if (isNaN(cant) || cant <= 0) {
