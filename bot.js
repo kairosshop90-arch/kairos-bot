@@ -20,9 +20,8 @@ let TASA_SITIO = 915;
 let TASA_MN = 925;
 let MODO = "auto";
 let pedidos = {};
-let colaNoche = []; // 22. Pedidos de noche
+let colaNoche = [];
 
-// ===== PERSISTENCIA =====
 if (!fs.existsSync('data')) fs.mkdirSync('data');
 function cargar(nombre, defecto) {
   try { return JSON.parse(fs.readFileSync(`data/${nombre}.json`, 'utf8')); } catch { return defecto; }
@@ -34,12 +33,10 @@ function guardar(nombre, data) {
 let CONTADOR_VALE = cargar('contador', 1);
 let comisiones = cargar('comisiones', {});
 let VALES = cargar('vales', {});
-let CLIENTES = cargar('clientes', {}); // 28. Puntos, 41. Recompra, 42. Lista espera
+let CLIENTES = cargar('clientes', {});
 let LISTA_ESPERA = cargar('lista_espera', []);
 
-// 4-5. SOLO ADMIN VE TODO
 const ADMIN_NUMERO = "5356947882@s.whatsapp.net";
-// 21. SEGUNDO JEFE - NUEVO NUMERO 51126531
 const SEGUNDO_JEFE_NUMERO = "5351126531@s.whatsapp.net";
 
 function fechaCuba() {
@@ -50,7 +47,6 @@ function hoyCuba() {
 }
 function horaCubaNum() { return fechaCuba().getHours(); }
 
-// ===== ALMACEN A1 / A2 - 29. STOCK POR ALMACEN =====
 let ALMACEN = cargar('almacen', {
   "J10": { A1: 5, A2: 5 }, "F6": { A1: 5, A2: 5 }, "BEE F6": { A1: 5, A2: 5 },
   "F39": { A1: 5, A2: 5 }, "F22": { A1: 5, A2: 5 },
@@ -69,7 +65,6 @@ function descontarStock(clave, cant) {
   else { queda -= ALMACEN[clave].A1; ALMACEN[clave].A1 = 0; ALMACEN[clave].A2 = Math.max(0, ALMACEN[clave].A2 - queda); }
 }
 
-// ===== CATALOGO =====
 const CATALOGO = {
   "J10": { nombre: "J10 Recargable", precio: 40, desc: "Solar + Bluetooth + Luz + Radio FM\nBatería 20.000 mAh, hasta 12h" },
   "F39": { nombre: "F39 Solar", precio: 42, desc: "Solar + Bluetooth + Luz\nBatería larga duración" },
@@ -85,7 +80,6 @@ const CATALOGO = {
 };
 const EQUIPOS_GRANDES = ["NEVERA", "FRIO", "EXHIBIDORA", "TV", "COLCHON"];
 
-// ===== TASA ELTOQUE +10 CADA 2H - 27 =====
 async function verificarTasaUSD() {
   if (MODO === "manual") return;
   try {
@@ -98,7 +92,6 @@ async function verificarTasaUSD() {
 setInterval(verificarTasaUSD, 7200000);
 verificarTasaUSD();
 
-// ===== MENSAJERIA =====
 const MENSAJERIA = [
   { zona: "san miguel", precio: 1000 },
   { zona: "san miguel", k: ["entrincado","intrincado"], precio: 1500 },
@@ -189,8 +182,13 @@ function buscarProducto(texto) {
   if (t.includes("COLCHON") || t.includes("COLCHÓN")) return "COLCHON";
   return null;
 }
+// Detecta cantidad escrita junto al producto: "J10 3" o "J10 x3"
+function extraerCantidad(texto) {
+  let m = texto.match(/(?:x|\s)(\d{1,2})\s*$/i);
+  if (m) return parseInt(m[1]);
+  return null;
+}
 
-// 47. FAQ AUTOMATICO - 60. HABLA COMO LOUIS
 const FAQ = {
   "garantia": "Dale, tiene 30 días de garantía en tienda. Si falla, te lo cambiamos, no te dejamos botado 👑",
   "donde": "Estamos en La Habana, hacemos domicilio a toda La Habana. Dime tu reparto y te calculo mensajería.",
@@ -198,23 +196,20 @@ const FAQ = {
   "horario": "Estamos de 8 AM a 5 PM. Después de las 5 te dejamos en cola y te atendemos a las 8 AM."
 };
 
-// 6-7. ANTI-GROSERIA / ANTI-SPAM
 const PALABRAS_PROHIBIDAS = ["http://", "https://", "t.me/", "otro negocio", "www."];
 function esSpam(texto) {
   let t = texto.toLowerCase();
   return PALABRAS_PROHIBIDAS.some(p => t.includes(p));
 }
 
-// 23-24. COMISION ESCALONADA
 function calcularComision(nc, cantEquipos) {
   let ventasSemana = comisiones[nc]?.ventas || 0;
   let porEquipo = 500;
-  if (ventasSemana >= 8) porEquipo = 750; // 15% aprox
-  else if (ventasSemana >= 5) porEquipo = 600; // 12% aprox
+  if (ventasSemana >= 8) porEquipo = 750;
+  else if (ventasSemana >= 5) porEquipo = 600;
   return cantEquipos * porEquipo;
 }
 
-// 50. RESPALDO 11 PM
 setInterval(() => {
   let h = horaCubaNum();
   if (h === 23) {
@@ -251,13 +246,12 @@ async function start() {
     const esSegundo = (from === SEGUNDO_JEFE_NUMERO);
     const esAutorizado = esAdmin || esSegundo;
 
-    // 6-7. ANTI-SPAM
     if (!esAutorizado && esSpam(rawText)) {
       await send(`No se permiten links de otros negocios en KAIROS 👑`);
       return;
     }
 
-    // ===== 20-21. CIERRE 5 PM / OK / CANCELAR / VER VALES =====
+    // ===== ADMIN / SEGUNDO JEFE =====
     if (esAutorizado && text.startsWith('cancelar kairos-')) {
       let codigo = text.replace('cancelar ', '').toUpperCase().trim();
       if (!VALES[codigo]) { await send(`Ese vale ${codigo} no existe.`); return; }
@@ -297,7 +291,6 @@ async function start() {
       hoyVales.forEach(v => { msg += `${v.codigo} - ${v.estado} - ${v.cliente} - ${v.comercial}\n`; });
       await send(msg); return;
     }
-    // 53-54. RESUMEN / ESTADISTICAS / TOP
     if (esAutorizado && text === 'resumen del dia') {
       let hoy = hoyCuba();
       let hoyVales = Object.values(VALES).filter(v => v.fecha === hoy);
@@ -324,7 +317,6 @@ async function start() {
       await send(`📋 Lista espera:\n` + LISTA_ESPERA.map(l=>`- ${l.cliente} quiere ${l.equipo} - ${l.telefono}`).join('\n')); return;
     }
 
-    // ===== SOLO ADMIN =====
     if (esAdmin && text.startsWith('actualizar stock')) {
       let partes = rawText.split(' ');
       let cant = parseInt(partes[partes.length-1]);
@@ -360,29 +352,16 @@ async function start() {
       return;
     }
 
-    // 22. VENDE DE NOCHE - COLA 5PM a 8AM
     let hora = horaCubaNum();
     let esNoche = hora >= 17 || hora < 8;
 
     let ped = pedidos[from] || { paso: 'inicio', productos: [], nombreComercial: '' };
 
-    // FAQ
-    if (text.includes('garantia')) { await send(FAQ.garantia); return; }
-    if (text.includes('donde estan') || text.includes('donde queda')) { await send(FAQ.donde); return; }
-    if (text.includes('aceptas')) { await send(FAQ.aceptas); return; }
-
-    // 41-42. LISTA ESPERA - si pregunta por algo sin stock
-    if (text.startsWith('lista espera')) {
-      // Ej: lista espera J10 Maria 55551234
-      let partes = rawText.split(' ');
-      LISTA_ESPERA.push({ equipo: partes[2]?.toUpperCase(), cliente: partes[3] || 'Cliente', telefono: partes[4] || from });
-      guardar('lista_espera', LISTA_ESPERA);
-      await send(`Anotado en lista de espera 👑 Te avisamos cuando llegue.`);
-      return;
-    }
-
-    if (text.includes('hola') || text.includes('menu') || text.includes('catalogo') || text === '1') {
-      if (esNoche && ped.paso === 'inicio') {
+    // ===== ARREGLO 1: EL "1" NO REINICIA SI YA ESTAS PIDIENDO =====
+    // Solo si NO estas en un pedido, hola/menu/1 te manda a inicio
+    let estaEnPedido = ped.paso && ped.paso !== 'inicio';
+    if (!estaEnPedido && (text.includes('hola') || text.includes('menu') || text.includes('catalogo') || text === '1')) {
+      if (esNoche) {
         await send(`Hola, bendecido día 🙏\nEstamos cerrados, son las ${fechaCuba().toLocaleTimeString('es-CU')} en Cuba.\nPero te dejo en cola. Dime qué equipo quieres y te atendemos a las 8 AM 👑`);
         return;
       }
@@ -391,29 +370,81 @@ async function start() {
       return;
     }
 
-    if (ped.paso === 'nombre') {
-      ped.nombreComercial = rawText;
-      ped.paso = 'catalogo'; pedidos[from] = ped;
-      await send(`Gracias ${rawText} 👑\n\n📋 CATÁLOGO:\n✅ Pedestal 18" - *23 USD*\n✅ J10 - *40 USD*\n✅ F6 - *35 USD*\n✅ Bee F6 - *32 USD*\n✅ F39 - *42 USD*\n✅ F22 - *70 USD*\n✅ Nevera / Frío / Exhibidora / TV / Colchón\n\n¿Cuál quieres? Escribe el modelo, ej: *J10*`);
+    if (text.includes('garantia')) { await send(FAQ.garantia); return; }
+    if (text.includes('donde estan') || text.includes('donde queda')) { await send(FAQ.donde); return; }
+    if (text.includes('aceptas')) { await send(FAQ.aceptas); return; }
+
+    if (text.startsWith('lista espera')) {
+      let partes = rawText.split(' ');
+      LISTA_ESPERA.push({ equipo: partes[2]?.toUpperCase(), cliente: partes[3] || 'Cliente', telefono: partes[4] || from });
+      guardar('lista_espera', LISTA_ESPERA);
+      await send(`Anotado en lista de espera 👑 Te avisamos cuando llegue.`);
       return;
     }
 
+    // Comando para salir y empezar de nuevo
+    if (text === 'cancelar' || text === 'salir') {
+      delete pedidos[from];
+      await send(`Listo, cancelado 👑 Escribe *hola* cuando quieras empezar de nuevo.`);
+      return;
+    }
+
+    if (ped.paso === 'nombre') {
+      ped.nombreComercial = rawText;
+      ped.paso = 'catalogo'; pedidos[from] = ped;
+      await send(`Gracias ${rawText} 👑\n\n📋 CATÁLOGO:\n✅ Pedestal 18" - *23 USD*\n✅ J10 - *40 USD*\n✅ F6 - *35 USD*\n✅ Bee F6 - *32 USD*\n✅ F39 - *42 USD*\n✅ F22 - *70 USD*\n✅ Nevera / Frío / Exhibidora / TV / Colchón\n\n¿Cuál quieres? Escribe el modelo, ej: *J10* o *J10 3* si quieres 3`);
+      return;
+    }
+
+    // ===== ARREGLO 2: ELEGIR PRODUCTO + CANTIDAD =====
     let claveProd = buscarProducto(rawText);
     if (claveProd && (ped.paso === 'catalogo' || ped.paso === 'elegido' || ped.paso === 'otro')) {
-      // 32. SIN STOCK
       if (stockTotal(claveProd) <= 0) {
         await send(`Dale mi hermano, ${claveProd} se acabó ahora mismo 😅\nTe anoto en lista de espera? Escribe: *lista espera ${claveProd} tu_nombre tu_telefono*`);
         return;
       }
       let info = CATALOGO[claveProd];
-      let existente = ped.productos.find(p=>p.clave===claveProd);
-      if (existente) existente.cant += 1;
-      else ped.productos.push({ clave: claveProd, nombre: info.nombre, precio: info.precio, cant: 1 });
+      let cantDirecta = extraerCantidad(rawText);
+      // Si escribió "J10 3" ya viene la cantidad, no preguntar
+      if (cantDirecta) {
+        if (cantDirecta > stockTotal(claveProd)) {
+          await send(`Solo quedan ${stockTotal(claveProd)} de ${info.nombre}. Escribe una cantidad menor.`);
+          return;
+        }
+        let existente = ped.productos.find(p=>p.clave===claveProd);
+        if (existente) existente.cant += cantDirecta;
+        else ped.productos.push({ clave: claveProd, nombre: info.nombre, precio: info.precio, cant: cantDirecta });
+        ped.paso = 'elegido'; pedidos[from] = ped;
+        let lista = ped.productos.map(p=>`• ${p.nombre} x${p.cant} - ${p.precio*p.cant} USD`).join('\n');
+        await send(`✅ Agregado: ${info.nombre} x${cantDirecta}\n\n🛒 Tu pedido hasta ahora:\n${lista}\n\n¿Quieres otro equipo?\n\n1. Sí, ver otros\n2. No, ya escogí / Quiero pedir estos`);
+        return;
+      }
+      // Si solo escribió "J10", preguntar cantidad
+      ped.productoPendiente = claveProd;
+      ped.paso = 'cantidad'; pedidos[from] = ped;
+      await send(`✅ *${info.nombre} - ${info.precio} USD*\n${info.desc}\n\n¿Cuántos quieres de ${info.nombre}?\nEscribe el número, ej: *2*\nQuedan ${stockTotal(claveProd)} disponibles`);
+      return;
+    }
+
+    // ===== PASO CANTIDAD =====
+    if (ped.paso === 'cantidad') {
+      let cant = parseInt(text);
+      if (isNaN(cant) || cant <= 0) {
+        await send(`Escribe solo el número, mi hermano. Ej: *2*`);
+        return;
+      }
+      let clave = ped.productoPendiente;
+      let info = CATALOGO[clave];
+      if (cant > stockTotal(clave)) {
+        await send(`Solo quedan ${stockTotal(clave)} de ${info.nombre}. ¿Quieres esos ${stockTotal(clave)}? Escribe *${stockTotal(clave)}* o escoge otro.`);
+        return;
+      }
+      let existente = ped.productos.find(p=>p.clave===clave);
+      if (existente) existente.cant += cant;
+      else ped.productos.push({ clave: clave, nombre: info.nombre, precio: info.precio, cant: cant });
       ped.paso = 'elegido'; pedidos[from] = ped;
       let lista = ped.productos.map(p=>`• ${p.nombre} x${p.cant} - ${p.precio*p.cant} USD`).join('\n');
-      // 32. STOCK BAJO
-      let avisoStock = stockTotal(claveProd) < 3 ? `\n⚠️ Quedan pocos, apúrate 👑` : '';
-      await send(`✅ *${info.nombre} - ${info.precio} USD*\n${info.desc}\n\n🛒 Tu pedido hasta ahora:\n${lista}${avisoStock}\n\n¿Quieres otro equipo?\n\n1. Sí, ver otros\n2. No, ya escogí / Quiero pedir estos`);
+      await send(`🛒 Tu pedido hasta ahora:\n${lista}\n\n¿Quieres otro equipo?\n\n1. Sí, ver otros\n2. No, ya escogí / Quiero pedir estos`);
       return;
     }
 
@@ -455,15 +486,12 @@ async function start() {
 
     if (ped.paso === 'datos') {
       ped.nombreCliente = rawText;
-
-      // 66. LIMITE 5 VALES POR DIA POR GESTOR
       let hoy = hoyCuba();
       let valesHoyGestor = Object.values(VALES).filter(v => v.comercial === ped.nombreComercial && v.fecha === hoy);
       if (valesHoyGestor.length >= 5) {
         await send(`Llegaste a 5 vales hoy. Pide OK de Louis para hacer otro 👑`);
         return;
       }
-
       let numeroVale = `KAIROS-${String(CONTADOR_VALE).padStart(3, '0')}`;
       CONTADOR_VALE++;
       guardar('contador', CONTADOR_VALE);
@@ -475,11 +503,8 @@ async function start() {
       if (!comisiones[nc]) comisiones[nc] = { ventas: 0, total: 0 };
       comisiones[nc].ventas += 1; comisiones[nc].total += comision;
       guardar('comisiones', comisiones);
-
       ped.productos.forEach(p=>{ descontarStock(p.clave, p.cant); });
       guardar('almacen', ALMACEN);
-
-      // 28. KAIROS PUNTOS - 10 puntos por compra
       if (!CLIENTES[from]) CLIENTES[from] = { nombre: nc, puntos: 0, compras: 0 };
       CLIENTES[from].puntos += 10;
       CLIENTES[from].compras += 1;
@@ -490,7 +515,6 @@ async function start() {
         msgPuntos = `🎉 Tienes 50 puntos! $5 USD de descuento en tu próxima compra.`;
       }
       guardar('clientes', CLIENTES);
-
       VALES[numeroVale] = {
         codigo: numeroVale,
         comercial: nc,
@@ -508,12 +532,9 @@ async function start() {
         confirmado_por: null
       };
       guardar('vales', VALES);
-
       await send(`✅ Pedido confirmado 👑\n\n🧾 Vale: *${numeroVale}*\n👤 Comercial: ${nc}\n👤 Cliente: ${ped.nombreCliente}\n\n📦 Productos:\n${listaProd}\nTotal: ${totalUSD} USD\n💰 Pago: ${ped.pago}\n🚚 Mensajería: ${ped.mensajeria} CUP\n📍 Dirección: ${ped.direccion}\n📝 Nota: ${ped.nota}\n\n⭐ ${msgPuntos}\nGracias por comprar en KAIROS SHOP 👑\n\n⏳ Pendiente OK de Louis a las 5 PM`);
-
       try {
         await sock.sendMessage(ADMIN_NUMERO, { text: `🔔 *NUEVO VALE ${numeroVale}*\n\n👤 Comercial: ${nc}\n👤 Cliente: ${ped.nombreCliente}\n📱 Chat: ${from}\n📍 Dirección: ${ped.direccion}\n\n📦 Productos:\n${listaProd}\n💰 Pago: ${ped.pago}\n🚚 Mensajería: ${ped.mensajeria} CUP\n📝 NOTA: ${ped.nota}\n💰 Comisión ${nc}: ${comision} CUP\n\n¡Atender! 👑\nPara confirmar: *OK confirmado ${numeroVale}*` });
-        // Avisar tambien al segundo jefe
         await sock.sendMessage(SEGUNDO_JEFE_NUMERO, { text: `🔔 Nuevo vale ${numeroVale} - ${nc} - ${ped.nombreCliente} - ${totalUSD} USD. Si Louis no está, tú puedes confirmar con: OK confirmado ${numeroVale}` });
       } catch(e) { console.log('Error aviso admin', e); }
       delete pedidos[from];
