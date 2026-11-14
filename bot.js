@@ -4,13 +4,12 @@ const express = require('express');
 const QRCode = require('qrcode');
 const fs = require('fs');
 const app = express();
-let ultimoQR = ""; let estado = 'Iniciando...'; let CODIGO = "";
+let ultimoQR = ""; let estado = 'Iniciando...';
 app.get('/', (req, res) => res.send('KAIROS BOT ACTIVO 👑'));
 app.get('/qr', async (req, res) => {
-  if (CODIGO) return res.send(`<h1 style="font-size:60px">CODIGO: ${CODIGO}</h1><p>WhatsApp > Ajustes > Dispositivos vinculados > Vincular con numero > Pon este codigo</p><p>${estado}</p>`);
-  if (!ultimoQR) return res.send(`<h1>${estado}</h1>`);
+  if (!ultimoQR) return res.send(`<h1>${estado}</h1><p>Espera 30 segundos y recarga la pagina</p>`);
   const img = await QRCode.toDataURL(ultimoQR);
-  res.send(`<h1>ESCANEA ESTE QR</h1><img src="${img}">`);
+  res.send(`<h1>ESCANEA ESTE QR CON WHATSAPP</h1><img src="${img}"><p>WhatsApp > Ajustes > Dispositivos vinculados > Vincular un dispositivo > Escanear</p>`);
 });
 app.listen(process.env.PORT || 3000);
 
@@ -139,17 +138,14 @@ setInterval(async()=>{
 },60000);
 setInterval(async()=>{ let ahora=fechaCuba(); let h=ahora.getHours(); let min=ahora.getMinutes(); let hoy=hoyCuba(); if(h===17 && min===0 && YA_5PM!==hoy && sockGlobal){ YA_5PM=hoy; let vHoy=Object.values(VALES).filter(v=>v.fecha===hoy); if(!vHoy.length){ await sockGlobal.sendMessage(ADMIN_NUMERO,{text:`📊 5 PM - Hoy no hubo ventas, Louis 👑`}); return; } let men=vHoy.filter(v=>v.tipo_entrega==='mensajeria'); let rec=vHoy.filter(v=>v.tipo_entrega==='recogida'); let msg=`📊 *CIERRE 5 PM - ${hoy} - KAIROS* 👑\nTotal: ${vHoy.length}\n\n🚚 *MENSAJERÍA (${men.length})*\n`; men.forEach(v=>{ msg+=`• ${v.codigo} - ${v.comercial} - ${v.cliente} - ${v.productos.map(p=>p.nombre+' x'+p.cant).join(', ')} - ${v.totalUSD} USD - ${v.estado}\n`; }); msg+=`\n🏪 *RECOGIDA (${rec.length})*\n`; rec.forEach(v=>{ msg+=`• ${v.codigo} - ${v.comercial} - ${v.cliente} - ${v.productos.map(p=>p.nombre+' x'+p.cant).join(', ')} - ${v.totalUSD} USD - ${v.estado}\n`; }); msg+=`\n✅ entregado KAIROS-001\n❌ no entregado KAIROS-001 motivo\n⚡ entregado todo`; await sockGlobal.sendMessage(ADMIN_NUMERO,{text:msg}); if(SEGUNDO_LIDS.length>0){ try{ await sockGlobal.sendMessage(SEGUNDO_LIDS[0],{text:msg}); }catch(e){} } } if(h===16 && min===59) YA_5PM=""; },60000);
 
-// ===== BOT =====
+// ===== BOT - SOLO QR =====
 async function start(){
   const { version } = await fetchLatestBaileysVersion();
   const { state, saveCreds } = await useMultiFileAuthState('auth_info');
   const sock = makeWASocket({ version, logger: pino({ level: 'silent' }), auth: state, browser: ["Kairos Bot","Chrome","1.0"] });
   sockGlobal = sock;
-  if(!sock.authState.creds.registered){
-    setTimeout(async()=>{ try{ let c = await sock.requestPairingCode("5356947882"); CODIGO = c; estado = 'CODIGO: ' + c; console.log(`\n\n👑 TU CODIGO ES: ${c}\n\n`); }catch(e){ console.log('Error codigo:', e.message); } }, 3000);
-  }
   sock.ev.on('creds.update', saveCreds);
-  sock.ev.on('connection.update', async (u)=>{ const { connection, lastDisconnect, qr } = u; estado='Conexion: '+connection; if(qr){ ultimoQR=qr; estado='QR LISTO'; } if(connection==='open'){ estado='BOT LISTO ✅'; ultimoQR=''; CODIGO=""; } if(connection==='close'){ const re = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut; if(re) start(); } });
+  sock.ev.on('connection.update', async (u)=>{ const { connection, lastDisconnect, qr } = u; estado='Conexion: '+connection; if(qr){ ultimoQR=qr; estado='QR LISTO - Escanea en /qr'; console.log('QR GENERADO - Entra a /qr'); } if(connection==='open'){ estado='BOT LISTO ✅'; ultimoQR=''; } if(connection==='close'){ const re = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut; if(re) start(); } });
   sock.ev.on('messages.upsert', async ({ messages })=>{
     const m=messages[0]; if(!m.message || m.key.fromMe) return;
     const rawText=(m.message.conversation || m.message.extendedTextMessage?.text || '');
@@ -162,14 +158,11 @@ async function start(){
     const esNumSegundo = fromNum==='5351126531' || sin53==='51126531' || fromNum.includes('51126531');
     let esAdmin=(esNumAdmin || ADMIN_LIDS.includes(from) || from===ADMIN_NUMERO);
     let esSegundo=(esNumSegundo || SEGUNDO_LIDS.includes(from) || from===SEGUNDO_NUMERO);
-
-    // Fotos canal
     if(from===FB_CANAL_FOTOS && (m.message.imageMessage || m.message.videoMessage)){
       let cap=(m.message.imageMessage?.caption || m.message.videoMessage?.caption || '').toLowerCase();
       let clave=buscarProducto(cap) || cap.split(' ')[1]?.toUpperCase();
       if(clave){ let fotos=cargar('fotos',{}); fotos[clave]={guardada:hoyCuba(),caption:cap,de:pushName}; guardar('fotos',fotos); await send(`📸 Foto de ${clave} guardada 👑`); return; }
     }
-    // Foto entrega en grupos
     if((m.message.imageMessage || m.message.videoMessage) && from.endsWith('@g.us')){
       let cap=(m.message.imageMessage?.caption || m.message.videoMessage?.caption || '').toLowerCase();
       if(cap.includes('foto entrega')){
@@ -177,7 +170,6 @@ async function start(){
         let v=VALES[cod]; if(v){ v.foto_entrega=true; v.foto_fecha=hoyCuba(); guardar('vales',VALES); await send(`✅ *FOTO ENTREGA GUARDADA - ${cod}* 👑\nCliente: ${v.cliente}`); return; }
       }
     }
-    // Grupos
     if(from.endsWith('@g.us')){
       if(text==='mi id'){ await send(`Tu ID es: ${from}\nEste es el ID de este grupo. Mandaselo a Louis.`); return; }
       if(GRUPOS_ESCUCHA.includes(from) && !esAdmin && !esSegundo){
@@ -200,7 +192,6 @@ async function start(){
       }
       return;
     }
-
     if((text==='ver grupos'||text==='mis grupos'||text==='id grupos') && (esAdmin||esSegundo)){ try{ let grupos=await sock.groupFetchAllParticipating(); let lista=Object.values(grupos).map(g=>`📦 ${g.subject}\nID: ${g.id}`).join('\n\n'); await send(`🏪 GRUPOS DONDE ESTOY 👑\n\n${lista||'Ninguno'}`); }catch(e){ await send(`Error: ${e.message}`); } return; }
     if((esAdmin||esSegundo) && text.startsWith('unir grupo ')){ let link=rawText.split(' ')[2]||rawText.split(' ')[1]||''; let codInv=link.split('/').pop().trim(); try{ let idG=await sock.groupAcceptInvite(codInv); await send(`✅ Me uní 👑\nID: ${idG}`); }catch(e){ await send(`No pude unirme: ${e.message}`); } return; }
     if(text==='mi id'){ await send(`Tu ID: ${from}\nNumero: ${fromNum}\nAdmin: ${esAdmin?'SI 👑':'NO'}\nSegundo: ${esSegundo?'SI':'NO'}`); return; }
