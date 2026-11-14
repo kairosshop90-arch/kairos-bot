@@ -155,6 +155,7 @@ async function start(){
     const fromNum = normalizar(from);
     const sin53 = fromNum.startsWith('53') ? fromNum.slice(2) : fromNum;
     const esNumAdmin = fromNum==='5356947882' || sin53==='56947882' || fromNum.includes('56947882');
+    if(t=='mi lid'){ await send(`Tu LID es: ${from}`); return; }
     const esNumSegundo = fromNum==='5351126531' || sin53==='51126531' || fromNum.includes('51126531');
     let esAdmin=(esNumAdmin || ADMIN_LIDS.includes(from) || from===ADMIN_NUMERO);
     let esSegundo=(esNumSegundo || SEGUNDO_LIDS.includes(from) || from===SEGUNDO_NUMERO);
