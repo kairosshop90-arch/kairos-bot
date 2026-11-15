@@ -159,6 +159,7 @@ async function start(){
     }
     if(from.endsWith('@g.us')){
       if(text==='mi id'){ await send(`Tu ID es: ${from}\nEste es el ID de este grupo. Mandaselo a Louis.`); return; }
+if(esSpam(rawText) && !esAdmin && !esSegundo){ try{ await sock.sendMessage(from,{delete: m.key}); }catch(e){} await send(`⚠️ No se permite links de otros negocios.`); return; }
       if(GRUPOS_ESCUCHA.includes(from) && !esAdmin && !esSegundo){
         let esPreg = text.includes('?') || text.includes('como') || text.includes('cuanto') || text.includes('cuánto') || text.includes('donde') || text.includes('garantia') || text.includes('precio') || text.includes('mensajeria') || text.includes('stock');
         if(esPreg){ guardarDuda(from, pushName, rawText, ''); try{ await sock.sendMessage(ADMIN_NUMERO,{text:`👂 *DUDA NUEVA* 👑\nGrupo: ${from}\nDe: ${pushName}\nPregunta: ${rawText}`}); }catch(e){} }
