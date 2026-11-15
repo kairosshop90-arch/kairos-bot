@@ -142,10 +142,8 @@ async function start(){
     const esNumAdmin = fromNum==='5356947882' || sin53==='56947882' || fromNum.includes('56947882');
    if((text||'').toLowerCase().trim()=='mi lid'){ await send(`Tu LID es: ${from}`); return; }
     const esNumSegundo = fromNum==='5351126531' || sin53==='51126531' || fromNum.includes('51126531');
-const ADMIN_LIDS = ["132624865579031@lid"];
     let esAdmin = (esNumAdmin || ADMIN_LIDS.includes(from) || from===ADMIN_NUMERO);
-let esSegundo = (esNumSegundo || SEGUNDO_LIDS.includes(from) || from===SEGUNDO_NUMERO);
-let esSegundo = (esNumSegundo || SEGUNDO_LIDS.includes(from) || from===SEGUNDO_NUMERO);
+    let esSegundo = (esNumSegundo || SEGUNDO_LIDS.includes(from) || from===SEGUNDO_NUMERO);
     if(from===FB_CANAL_FOTOS && (m.message.imageMessage || m.message.videoMessage)){
       let cap=(m.message.imageMessage?.caption || m.message.videoMessage?.caption || '').toLowerCase();
       let clave=buscarProducto(cap) || cap.split(' ')[1]?.toUpperCase();
@@ -168,7 +166,6 @@ let esSegundo = (esNumSegundo || SEGUNDO_LIDS.includes(from) || from===SEGUNDO_N
       }
       if(esSpam(rawText) && !esAdmin && !esSegundo){ try{ await sock.sendMessage(from,{delete: m.key}); }catch(e){} await send(`⚠️ No se permite links de otros negocios.`); return; }
       if(from===GRUPO_ALMACEN){
-        // SI ESTA ESPERANDO ELEGIR ALMACEN, ESTE MENSAJE ES LA RESPUESTA
         if(PENDIENTE_ALM[from]){
           let alm = text.toUpperCase().trim();
           if(alm==='1') alm='A1'; if(alm==='2') alm='A2'; if(alm==='3') alm='A3';
@@ -182,7 +179,6 @@ let esSegundo = (esNumSegundo || SEGUNDO_LIDS.includes(from) || from===SEGUNDO_N
             return;
           }
         }
-// ===== VACIAR Y BORRAR =====
 if(text.startsWith('vaciar ')){
   let alm = text.replace('vaciar ','').trim().toUpperCase();
   if(alm=='1') alm='A1'; if(alm=='2') alm='A2'; if(alm=='3') alm='A3';
@@ -195,7 +191,6 @@ if(text.startsWith('vaciar ')){
   }
   return;
 }
-
 if(text.startsWith('borrar ')){
   let partes = rawText.split(' ');
   let alm = partes[1].toUpperCase(); if(alm=='1') alm='A1'; if(alm=='2') alm='A2'; if(alm=='3') alm='A3';
@@ -211,7 +206,6 @@ if(text.startsWith('borrar ')){
 }
         if(text.startsWith('llegó ')||text.startsWith('llego ')||text.startsWith('entrada ')||text.startsWith('entró ')||text.startsWith('entro ')){
           let partes=rawText.split(' '); partes.shift();
-          // Si el ultimo es A1/A2/A3 o 1/2/3, es directo
           let ultimoRaw = partes[partes.length-1].toUpperCase();
           let almDirecto = null;
           if(ultimoRaw==='A1'||ultimoRaw==='A2'||ultimoRaw==='A3') almDirecto=ultimoRaw;
@@ -226,7 +220,6 @@ if(text.startsWith('borrar ')){
             await send(`✅ *GUARDADO* 👑\n${clave} +${cant} en ${almDirecto}\nTotal: ${stockTotal(clave)} (A1:${ALMACEN[clave].A1||0} | A2:${ALMACEN[clave].A2||0} | A3:${ALMACEN[clave].A3||0})`);
             return;
           }
-          // Si no dijo almacen, preguntar
           PENDIENTE_ALM[from]={clave, cant};
           await send(`📦 *LLEGÓ ${clave} x${cant}* 👑\n\n¿En qué almacén lo pongo?\n\n1️⃣ A1 - ${DIR_ALM['A1']}\n2️⃣ A2 - ${DIR_ALM['A2']}\n3️⃣ A3 - ${DIR_ALM['A3']}\n\nEscribe *A1*, *A2* o *A3* (o solo 1, 2 o 3)`);
           return;
