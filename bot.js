@@ -140,6 +140,7 @@ async function start(){
     const text=rawText.toLowerCase().trim(); const from=m.key.remoteJid;
     const send=async(t)=>{ await sock.sendMessage(from,{text:t}); };
     const pushName=m.pushName||'Gestor';
+    const remitente = m.key.participant || from;
     const fromNum = normalizar(from);
     const sin53 = fromNum.startsWith('53') ? fromNum.slice(2) : fromNum;
     const esNumAdmin = fromNum==='5356947882' || sin53==='56947882' || fromNum.includes('56947882');
