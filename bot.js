@@ -1,3 +1,11 @@
+const http = require('http');
+const PORT = process.env.PORT || 3000;
+http.createServer((req, res) => {
+  res.writeHead(200, {'Content-Type': 'text/plain'});
+  res.end('Kairos bot activo');
+}).listen(PORT, () => console.log('Puerto abierto en ' + PORT));
+
+
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const fs = require('fs');
 const pino = require('pino');
