@@ -50,8 +50,8 @@ function normalizar(s){ return (s||'').replace(/[^0-9]/g,''); }
 async function verificarTasa(){ if(MODO==="manual") return; try{ const r=await fetch("https://api.eltoque.com/v1/trmi"); const d=await r.json(); const u=d.find(m=>m.currency==="USD"); if(u){ TASA_SITIO=u.price||u.valor; TASA_MN=TASA_SITIO+10; } }catch(e){} }
 setInterval(verificarTasa,7200000); verificarTasa();
 let DIR_ALM = cargar('almacenes_direcciones',{'A1':'Calle 1ra #23306 / 4ta y 6ta. Altura del Mirador del Diezmero','A2':'Calle 2da / E y D, Reparto Luyano Moderno, La Corea, #18532, San Miguel del Padrón','A3':'PONER DIRECCION DE A3 AQUI'});
-let PROD_ALM = cargar('producto_almacen',{'J10':'A1',
-   PROD_ALM['J10'] = 'A1';                                       
+let PROD_ALM = cargar('producto_almacen',{'J10':'A1','F39':'A1','F6':'A3','F22':'A2','BEE F6':'A3','PEDESTAL':'A1','NEVERA':'A2','FRIO':'A1','EXHIBIDORA':'A2','TV':'A1','COLCHON':'A3'});
+PROD_ALM['J10'] = 'A1';
 let ALM_DEF = {};
 ["J10","F39","F22","F6","BEE F6","PEDESTAL","NEVERA","FRIO","EXHIBIDORA","TV","COLCHON","REINA","ARROCERA","INFRARROJO","VENTILADOR","MICROWAVE","FREIDORA","MOTOR AGUA","PULIDORA","OLLA PRESION","BATIDORA","CAFETERA","FILTRO AGUA","COCINA ELECTRICA","TOSTADORA","BOCINA","SARTEN","CALDEROS","FREGADERO","TALADRO","CUCHILLOS","CASCO MOTO","FOGON","LAVADORA","SPLIT","REFRIGERADOR","FREGADORA MOTO","DISPENSADOR","COCINA HORNO","PANEL SOLAR","ESTANTE","CALENTADOR","CAJA FUERTE"].forEach(k=>{ ALM_DEF[k]={A1:0,A2:0,A3:0}; });
 ALM_DEF["J10"]={A1:5,A2:5,A3:0}; ALM_DEF["F39"]={A1:5,A2:5,A3:0}; ALM_DEF["F6"]={A1:5,A2:5,A3:0}; ALM_DEF["BEE F6"]={A1:5,A2:5,A3:0}; ALM_DEF["F22"]={A1:5,A2:5,A3:0}; ALM_DEF["PEDESTAL"]={A1:5,A2:5,A3:0}; ALM_DEF["NEVERA"]={A1:3,A2:2,A3:0}; ALM_DEF["FRIO"]={A1:3,A2:2,A3:0}; ALM_DEF["EXHIBIDORA"]={A1:2,A2:1,A3:0}; ALM_DEF["TV"]={A1:3,A2:2,A3:0}; ALM_DEF["COLCHON"]={A1:3,A2:2,A3:0};
