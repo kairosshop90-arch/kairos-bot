@@ -162,7 +162,36 @@ async function start(){
     }
     if(from.endsWith('@g.us')){
       if(text==='mi id'){ await send(`Tu ID es: ${from}\nEste es el ID de este grupo. Mandaselo a Louis.`); return; }
-if(esSpam(rawText) && !esAdmin && !esSegundo){ try{ await sock.sendMessage(from,{delete: m.key}); }catch(e){} await send(`⚠️ No se permite links de otros negocios.`); return; }
+if(esSpam(rawText) && !esAdmin && !esSegundo){
+  try{ await sock.sendMessage(from,{delete: m.key}); }catch(e){}
+  // Si esta baneado, borrar y no dejar hablar
+  if(BANEADOS[remitente] && Date.now() < BANEADOS[remitente]){
+    return;
+  }
+  if(!SPAM_CONTADOR[remitente]) SPAM_CONTADOR[remitente]=0;
+  SPAM_CONTADOR[remitente]++;
+  guardar('spam_contador',SPAM_CONTADOR);
+  if(SPAM_CONTADOR[remitente]===1){
+    await send(`⚠️ @${remitente.split('@')[0]} No se permite links de otros negocios.\n1ra vez = Advertencia. 2da = Baneo 30 min. 3ra = Expulsado.`);
+    return;
+  }
+  if(SPAM_CONTADOR[remitente]===2){
+    BANEADOS[remitente]=Date.now()+30*60*1000;
+    guardar('baneados',BANEADOS);
+    await send(`🚫 @${remitente.split('@')[0]} BANEADO 30 MINUTOS por 2do link.\nTodo lo que mandes en estos 30 min se borra.`);
+    return;
+  }
+  if(SPAM_CONTADOR[remitente]>=3){
+    SPAM_CONTADOR[remitente]=0;
+    delete BANEADOS[remitente];
+    guardar('spam_contador',SPAM_CONTADOR);
+    guardar('baneados',BANEADOS);
+    try{ await sock.groupParticipantsUpdate(from,[remitente],'remove'); }catch(e){}
+    await send(`❌ @${remitente.split('@')[0]} EXPULSADO por 3er link de otro negocio.`);
+    return;
+  }
+  return;
+}
       if(GRUPOS_ESCUCHA.includes(from) && !esAdmin && !esSegundo){
         let esPreg = text.includes('?') || text.includes('como') || text.includes('cuanto') || text.includes('cuánto') || text.includes('donde') || text.includes('garantia') || text.includes('precio') || text.includes('mensajeria') || text.includes('stock');
         if(esPreg){ guardarDuda(from, pushName, rawText, ''); try{ await sock.sendMessage(ADMIN_NUMERO,{text:`👂 *DUDA NUEVA* 👑\nGrupo: ${from}\nDe: ${pushName}\nPregunta: ${rawText}`}); }catch(e){} }
