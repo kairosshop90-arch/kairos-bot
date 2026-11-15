@@ -180,6 +180,33 @@ async function start(){
             return;
           }
         }
+// ===== VACIAR Y BORRAR =====
+if(text.startsWith('vaciar ')){
+  let alm = text.replace('vaciar ','').trim().toUpperCase();
+  if(alm=='1') alm='A1'; if(alm=='2') alm='A2'; if(alm=='3') alm='A3';
+  if(alm=='A1' || alm=='A2' || alm=='A3'){
+    for(let k in ALMACEN){ if(ALMACEN[k][alm]!==undefined) ALMACEN[k][alm]=0; }
+    guardar('almacen',ALMACEN);
+    await send(`✅ ${alm} vaciado. Todo en 0.`);
+  } else {
+    await send(`❌ No existe ${alm}. Usa A1, A2 o A3`);
+  }
+  return;
+}
+
+if(text.startsWith('borrar ')){
+  let partes = rawText.split(' ');
+  let alm = partes[1].toUpperCase(); if(alm=='1') alm='A1'; if(alm=='2') alm='A2'; if(alm=='3') alm='A3';
+  let clave = partes[2].toUpperCase();
+  if(ALMACEN[clave] && ALMACEN[clave][alm]!==undefined){
+    ALMACEN[clave][alm]=0;
+    guardar('almacen',ALMACEN);
+    await send(`✅ Borrado ${clave} de ${alm}`);
+  } else {
+    await send(`❌ No encontré ${clave} en ${alm}`);
+  }
+  return;
+}
         if(text.startsWith('llegó ')||text.startsWith('llego ')||text.startsWith('entrada ')||text.startsWith('entró ')||text.startsWith('entro ')){
           let partes=rawText.split(' '); partes.shift();
           // Si el ultimo es A1/A2/A3 o 1/2/3, es directo
