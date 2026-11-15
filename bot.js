@@ -166,7 +166,7 @@ if(esSpam(rawText) && !esAdmin && !esSegundo){ try{ await sock.sendMessage(from,
         if(text.startsWith('respuesta:')){ let resto=rawText.replace(/respuesta:/i,'').trim(); let partes=resto.split('='); if(partes.length===2){ let preg=partes[0].trim(); let resp=partes[1].trim(); let d=DUDAS.find(x=>x.pregunta.toLowerCase().includes(preg.toLowerCase().slice(0,10))); if(d){ d.respuesta=resp; guardar('dudas_base',DUDAS); } else guardarDuda(from, pushName, preg, resp); await send(`✅ Respuesta guardada 👑`); } }
         return;
       }
-      if(esSpam(rawText) && !esAdmin && !esSegundo){ try{ await sock.sendMessage(from,{delete: m.key}); }catch(e){} await send(`⚠️ No se permite links de otros negocios.`); return; }
+      
       if(from===GRUPO_ALMACEN){
         if(PENDIENTE_ALM[from]){
           let alm = text.toUpperCase().trim();
