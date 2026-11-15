@@ -263,6 +263,12 @@ async function start(){
       try{ await sock.sendMessage(ADMIN_NUMERO,{text:`🔔 *NUEVO PEDIDO ${codigo}*\nGestor: ${pushName}\nCliente: ${cliente} - ${tel}\n${CATALOGO[clave].nombre} x${cant} - ${total} USD - Comision: ${vale.comision} CUP\nEntrega: ${tipo} - ${direccion}\nEnlace: ${rLink}\n\nConfirma: OK confirmado ${codigo}`}); }catch(e){}
       return;
     }
+// Si escribe solo el producto, no mandar bienvenida
+let claveSola = buscarProducto(rawText);
+if(claveSola && !text.startsWith('pedido')){
+  await send(`👑 Quieres pedir *${CATALOGO[claveSola].nombre}* ?\nPrecio: ${CATALOGO[claveSola].precio} USD\nStock: ${stockTotal(claveSola)}\nComision: ${comisionPorClave(claveSola)} CUP\n\nMandalo asi para crearlo:\npedido ${claveSola} x1 - Maria Perez - 56947882 - San Miguel - mensajeria`);
+  return;
+}
     if(esSpam(rawText)){ await send(`No se permite enlaces de otros negocios.`); return; }
     if(text.includes('garantia')||text.includes('garantía')){ await send(`Dale, tiene 30 días de garantía en tienda. Si falla, te lo cambiamos 👑`); return; }
     if(text.includes('donde estan')||text.includes('donde están')||text.includes('ubicacion')){ await send(`Estamos en La Habana, domicilio a toda La Habana. Dime tu reparto y te calculo mensajería.`); return; }
