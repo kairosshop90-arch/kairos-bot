@@ -37,8 +37,8 @@ let PEDIDOS = cargar('pedidos', []);
 let DUDAS = cargar('dudas', {});
 let PEDIDOS_PENDIENTES = {};
 let GRUPOS_ESCUCHA = cargar('grupos_escucha', []);
-let ADMIN_JID = 'TU_NUMERO@s.whatsapp.net';
-let SEGUNDO_JID = 'SEGUNDO_NUMERO@s.whatsapp.net';
+let ADMIN_JID = '5356947882@s.whatsapp.net';
+let SEGUNDO_JID = 'NUMERO_DE_TU_SEGUNDO@s.whatsapp.net';
 
 function esSpam(texto){
   if(!texto) return false;
