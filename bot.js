@@ -142,7 +142,7 @@ async function start(){
     const esNumAdmin = fromNum==='5356947882' || sin53==='56947882' || fromNum.includes('56947882');
    if((text||'').toLowerCase().trim()=='mi lid'){ await send(`Tu LID es: ${from}`); return; }
     const esNumSegundo = fromNum==='5351126531' || sin53==='51126531' || fromNum.includes('51126531');
-    let esAdmin=(esNumAdmin || ADMIN_LIDS.includes(from) || from===ADMIN_NUMERO);
+const ADMIN_LIDS = ["lo-que-ya-tenia", "132624865579031@lid"];
     let esSegundo=(esNumSegundo || SEGUNDO_LIDS.includes(from) || from===SEGUNDO_NUMERO);
     if(from===FB_CANAL_FOTOS && (m.message.imageMessage || m.message.videoMessage)){
       let cap=(m.message.imageMessage?.caption || m.message.videoMessage?.caption || '').toLowerCase();
