@@ -1,14 +1,21 @@
-const http = require('http');
-const PORT = process.env.PORT || 3000;
-http.createServer((req, res) => {
-  res.writeHead(200, {'Content-Type': 'text/plain'});
-  res.end('Kairos bot activo');
-}).listen(PORT, () => console.log('Puerto abierto en ' + PORT));
-
-
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const fs = require('fs');
 const pino = require('pino');
+const express = require('express');
+
+// ============ SERVIDOR PARA RENDER + QR ============
+const app = express();
+const PORT = process.env.PORT || 3000;
+let ultimoQR = '';
+
+app.get('/', (req, res) => res.send('Kairos bot activo'));
+
+app.get('/qr', (req, res) => {
+  if(!ultimoQR) return res.send('Ya estas conectado, no hay QR para escanear. Si quieres uno nuevo, borra la sesion en Render y vuelve a desplegar.');
+  res.send(`<h2>Escanea este QR con WhatsApp</h2><img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(ultimoQR)}">`);
+});
+
+app.listen(PORT, () => console.log('Puerto abierto en ' + PORT));
 
 // ============ GUARDAR Y CARGAR ============
 function cargar(nombre, defecto){
@@ -44,11 +51,9 @@ let sockGlobal = null;
 async function actualizarTasaElToque(avisar){
   try{
     let tasaNueva = null;
-    // Intento 1: API oficial de El Toque
     try{
       let res = await fetch('https://api.eltoque.com/v1/trmi', { headers: { 'User-Agent': 'Mozilla/5.0' } });
       let data = await res.json();
-      // La API devuelve lista de tasas, buscamos USD
       let lista = data.trmi || data || [];
       if(Array.isArray(lista)){
         let usd = lista.find(x => (x.moneda || x.currency || '').toString().toUpperCase().includes('USD'));
@@ -56,8 +61,6 @@ async function actualizarTasaElToque(avisar){
       }
       if(!tasaNueva && data.USD) tasaNueva = parseFloat(data.USD);
     }catch(e){}
-
-    // Intento 2: pagina de El Toque
     if(!tasaNueva){
       try{
         let res2 = await fetch('https://eltoque.com/', { headers: { 'User-Agent': 'Mozilla/5.0' } });
@@ -66,7 +69,6 @@ async function actualizarTasaElToque(avisar){
         if(m) tasaNueva = parseFloat(m[1].replace(',','.'));
       }catch(e){}
     }
-
     if(tasaNueva && tasaNueva > 100 && tasaNueva < 2000){
       let vieja = TASA.valor;
       if(Math.abs(tasaNueva - vieja) >= 1){
@@ -77,14 +79,10 @@ async function actualizarTasaElToque(avisar){
         if(avisar && sockGlobal){
           try{ await sockGlobal.sendMessage(ADMIN_JID, { text: `💵 Tasa El Toque actualizada\nAntes: ${vieja} CUP\nAhora: ${TASA.valor} CUP\nTu cobro (Toque+10): ${TASA.valor + 10} CUP\nActualizado: ${TASA.actualizado}` }); }catch(e){}
         }
-      } else {
-        console.log(`Tasa Toque sin cambio: ${TASA.valor}`);
       }
       return TASA.valor;
-    } else {
-      console.log('No se pudo leer tasa del Toque, se queda en: ' + TASA.valor);
-      return TASA.valor;
     }
+    return TASA.valor;
   }catch(e){
     console.log('Error buscando tasa El Toque: ' + e.message);
     return TASA.valor;
@@ -98,9 +96,13 @@ async function main(){
   sock.ev.on('creds.update', saveCreds);
 
   sock.ev.on('connection.update', (u) => {
+    if(u.qr){
+      ultimoQR = u.qr;
+      console.log('Nuevo QR generado, ve a /qr');
+    }
     if(u.connection === 'open'){
+      ultimoQR = '';
       console.log('BOT CONECTADO');
-      // Al conectar, revisar tasa una vez y luego cada 30 minutos
       actualizarTasaElToque(false);
       setInterval(() => actualizarTasaElToque(true), 30 * 60 * 1000);
     }
