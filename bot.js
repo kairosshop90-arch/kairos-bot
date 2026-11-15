@@ -60,7 +60,7 @@ for(let k in ALM_DEF) if(!ALMACEN[k]) ALMACEN[k]=ALM_DEF[k];
 function stockTotal(c){ if(!ALMACEN[c]) return 0; if(typeof ALMACEN[c]==='number') return ALMACEN[c]; return (ALMACEN[c].A1||0)+(ALMACEN[c].A2||0)+(ALMACEN[c].A3||0); }
 function descontar(clave,cant){ if(typeof ALMACEN[clave]==='number'){ ALMACEN[clave]=Math.max(0,ALMACEN[clave]-cant); return; } let q=cant; for(let a of ['A1','A2','A3']){ if(q<=0) break; let d=ALMACEN[clave][a]||0; let qu=Math.min(d,q); ALMACEN[clave][a]=d-qu; q-=qu; } }
 function devolver(clave,cant,alm){ if(typeof ALMACEN[clave]==='number'){ ALMACEN[clave]+=cant; return; } if(!ALMACEN[clave][alm]) ALMACEN[clave][alm]=0; ALMACEN[clave][alm]+=cant; }
-function textoAlm(productos){ let por={}; for(let p of productos){ let a=PROD_ALM[p.clave]||'A1'; if(!por[a]) por[a]=[]; por[a].push(p); } return Object.keys(por).map(a=>`📦 Almacen ${a} - ${DIR_ALM[a]}\n${por[a].map(p=>`- ${p.nombre} x${p.cant}`).join('\n')}`).join('\n\n'); }
+function textoAlm(productos){ let por={}; for(let p of productos){ let a=PROD_ALM[p.clave]||'A1'; if(ALMACEN[p.clave] && typeof ALMACEN[p.clave]==='object'){ if((ALMACEN[p.clave].A1||0)>0) a='A1'; else if((ALMACEN[p.clave].A2||0)>0) a='A2'; else if((ALMACEN[p.clave].A3||0)>0) a='A3'; } if(!por[a]) por[a]=[]; por[a].push(p); } return Object.keys(por).map(a=>`📦 Almacen ${a} - ${DIR_ALM[a]}\n${por[a].map(p=>`- ${p.nombre} x${p.cant}`).join('\n')}`).join('\n\n'); }
 function grupoParaVale(v){ return v.tipo_entrega==='recogida' ? GRUPO_LOCAL : GRUPO_MENSAJERIA; }
 let CATALOGO = {
   "J10":{nombre:"J10 Recargable",precio:40,desc:"Solar + Bluetooth + Luz + Radio FM"},
