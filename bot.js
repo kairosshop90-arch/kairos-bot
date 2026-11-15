@@ -12,8 +12,6 @@ app.get('/qr', async (req, res) => {
   res.send(`<h1>ESCANEA ESTE QR CON WHATSAPP</h1><img src="${img}"><p>WhatsApp > Ajustes > Dispositivos vinculados > Vincular un dispositivo > Escanear</p>`);
 });
 app.listen(process.env.PORT || 3000);
-
-// ===== DATOS =====
 if (!fs.existsSync('data')) fs.mkdirSync('data');
 function cargar(n,d){ try{ return JSON.parse(fs.readFileSync(`data/${n}.json`,'utf8')); }catch{ return d; } }
 function guardar(n,d){ fs.writeFileSync(`data/${n}.json`, JSON.stringify(d,null,2)); }
@@ -30,9 +28,9 @@ let OFERTAS = cargar('ofertas_guardadas',[]);
 let ENTREGAS = cargar('entregas_pendientes',{});
 let ULTIMOS = {};
 let PASOS = {};
+let PENDIENTE_ALM = {};
 let sockGlobal = null;
 let YA_5PM = ""; let YA_RESPALDO = ""; let YA_CIERRE = ""; let ESPERANDO_ALMACEN = false;
-
 const ADMIN_NUMERO = "5356947882@s.whatsapp.net";
 const SEGUNDO_NUMERO = "5351126531@s.whatsapp.net";
 const GRUPO_LOCAL = "PON_AQUI_ID_GRUPO_LOCAL";
@@ -42,8 +40,6 @@ const GRUPO_CLIENTES_LINK = "PON_AQUI_LINK_GRUPO_CLIENTES";
 const FB_PAGE_ID = "PON_TU_PAGE_ID_AQUI";
 const FB_PAGE_TOKEN = "PON_TU_PAGE_ACCESS_TOKEN_AQUI";
 const FB_CANAL_FOTOS = "PON_AQUI_ID_GRUPO_CANAL_FOTOS";
-
-// ===== TIEMPO CUBA / TASA =====
 let TASA_SITIO = 915; let TASA_MN = 925; let MODO = "auto";
 function fechaCuba(){ return new Date(new Date().toLocaleString('en-US',{timeZone:'America/Havana'})); }
 function hoyCuba(){ return fechaCuba().toLocaleDateString('en-CA',{timeZone:'America/Havana'}); }
@@ -53,8 +49,6 @@ function esHorario(){ let h=horaCuba(); return h>=8 && h<17; }
 function normalizar(s){ return (s||'').replace(/[^0-9]/g,''); }
 async function verificarTasa(){ if(MODO==="manual") return; try{ const r=await fetch("https://api.eltoque.com/v1/trmi"); const d=await r.json(); const u=d.find(m=>m.currency==="USD"); if(u){ TASA_SITIO=u.price||u.valor; TASA_MN=TASA_SITIO+10; } }catch(e){} }
 setInterval(verificarTasa,7200000); verificarTasa();
-
-// ===== ALMACEN / CATALOGO =====
 let DIR_ALM = cargar('almacenes_direcciones',{'A1':'Calle 1ra #23306 / 4ta y 6ta. Altura del Mirador del Diezmero','A2':'Calle 2da / E y D, Reparto Luyano Moderno, La Corea, #18532, San Miguel del Padrón','A3':'PONER DIRECCION DE A3 AQUI'});
 let PROD_ALM = cargar('producto_almacen',{'J10':'A2','F39':'A1','F6':'A3','F22':'A2','BEE F6':'A3','PEDESTAL':'A1','NEVERA':'A2','FRIO':'A1','EXHIBIDORA':'A2','TV':'A1','COLCHON':'A3'});
 let ALM_DEF = {};
@@ -67,7 +61,6 @@ function descontar(clave,cant){ if(typeof ALMACEN[clave]==='number'){ ALMACEN[cl
 function devolver(clave,cant,alm){ if(typeof ALMACEN[clave]==='number'){ ALMACEN[clave]+=cant; return; } if(!ALMACEN[clave][alm]) ALMACEN[clave][alm]=0; ALMACEN[clave][alm]+=cant; }
 function textoAlm(productos){ let por={}; for(let p of productos){ let a=PROD_ALM[p.clave]||'A1'; if(!por[a]) por[a]=[]; por[a].push(p); } return Object.keys(por).map(a=>`📦 Almacen ${a} - ${DIR_ALM[a]}\n${por[a].map(p=>`- ${p.nombre} x${p.cant}`).join('\n')}`).join('\n\n'); }
 function grupoParaVale(v){ return v.tipo_entrega==='recogida' ? GRUPO_LOCAL : GRUPO_MENSAJERIA; }
-
 let CATALOGO = {
   "J10":{nombre:"J10 Recargable",precio:40,desc:"Solar + Bluetooth + Luz + Radio FM"},
   "F39":{nombre:"F39 Solar",precio:42,desc:"Solar + Bluetooth + Luz"},
@@ -106,12 +99,8 @@ const COM_OFICIAL = {
 function comisionPorClave(clave){ let c=clave.toUpperCase().trim(); for(let m in COM_OFICIAL){ if(COM_OFICIAL[m].includes(c)) return parseInt(m); } return 1000; }
 function calcularComision(prods){ let t=0; for(let p of prods) t+=comisionPorClave(p.clave)*p.cant; return t; }
 function sumarComision(nc, prods){ if(!comisiones[nc]) comisiones[nc]={ventas:0,total:0,pagado:0}; let monto=calcularComision(prods); comisiones[nc].ventas+=prods.reduce((s,p)=>s+p.cant,0); comisiones[nc].total+=monto; guardar('comisiones',comisiones); return monto; }
-
-// ===== MENSAJERIA =====
 const MENSAJERIA = [ { zona:"san miguel",precio:1000}, {zona:"san miguel",k:["entrincado","intrincado"],precio:1500}, {zona:"guanabacoa",k:["via blanca","debeche","mañana","centro guanabacoa"],precio:2000}, {zona:"guanabacoa",k:["roble","jata","mikito","naranjo"],precio:2500}, {zona:"guanabacoa",k:["puente de santa fe","santa fe"],precio:3000}, {zona:"guanabacoa",k:["barreras","minas"],precio:4000}, {zona:"campo florido",precio:5000}, {zona:"regla",precio:2000}, {zona:"casa blanca",precio:2500}, {zona:"bahia",precio:2500}, {zona:"cojimar",precio:2500}, {zona:"villa panamericana",precio:2500}, {zona:"alamar",precio:2500}, {zona:"alamar",k:["zona 17","zona 18","micro x","calle ancha"],precio:3000}, {zona:"camilo",precio:2500}, {zona:"cotorro",k:["centro"],precio:2500}, {zona:"cotorro",k:["paradero"],precio:3000}, {zona:"cotorro",k:["santa maria","al berro","loma de tierra"],precio:3500}, {zona:"cuatro camino",precio:4000}, {zona:"diez de octubre",precio:2000}, {zona:"vibora",precio:2000}, {zona:"lawton",precio:2000}, {zona:"arroyo naranjo",precio:2500}, {zona:"calabazar",precio:3000}, {zona:"reparto electrico",precio:2500}, {zona:"managua",precio:4000}, {zona:"guasimas",precio:3500}, {zona:"centro habana",precio:2000}, {zona:"habana vieja",precio:2000}, {zona:"cerro",precio:2000}, {zona:"cerro",k:["casino","ayestaran","boyero","camaguey"],precio:2500}, {zona:"vedado",precio:2000}, {zona:"plaza",precio:2000}, {zona:"playa",precio:3000}, {zona:"playa",k:["despues del paradero"],precio:3500}, {zona:"jaimanita",precio:4000}, {zona:"santa fe playa",precio:4500}, {zona:"marianao",precio:3500}, {zona:"lisa",precio:3500}, {zona:"lisa",k:["despues de 222"],precio:4000}, {zona:"punta brava",precio:5000}, {zona:"valle grande",precio:5000}, {zona:"arroyo arena",precio:4500}, {zona:"san agustin",precio:4000}, {zona:"guanabo",precio:6000}, {zona:"cien y aldabo",precio:3000}, {zona:"boyero",k:["alta habana"],precio:3000}, {zona:"boyero",precio:4000}, {zona:"santiago de las vegas",precio:4500}, {zona:"wajay",precio:5000}, {zona:"el chico",precio:5000} ];
 function calcularMensajeria(dir, prods, txtFull){ let d=dir.toLowerCase(); let enc=null; for(let m of MENSAJERIA){ if(m.k && m.k.some(k=>d.includes(k))){ enc=m; break; } } if(!enc) for(let m of MENSAJERIA){ if(d.includes(m.zona)){ enc=m; break; } } if(!enc) return null; let base=enc.precio; let esG=prods.some(p=>GRANDES.includes(p.clave)); let tot=prods.reduce((s,p)=>s+p.cant,0); let fin=base; let det=`Base ${base} CUP`; if(esG||tot>=3){ fin=base*2; det+=` x2 = ${fin}`; } let t=txtFull.toLowerCase(); if(t.includes("nevera 11")||t.includes("nevera 16")||t.includes("11 pies")||t.includes("16 pies")){ fin+=500; det+=` +500 Nevera`; } if(prods.some(p=>p.clave==="EXHIBIDORA")){ fin+=1000; det+=` +1000 Exhibidora`; } if((t.includes("frio 15")||t.includes("15 pies")||t.includes("16 pies")||t.includes("17 pies")||t.includes("18 pies")||t.includes("20 pies")) && prods.some(p=>p.clave==="FRIO")){ fin+=800; det+=` +800 Frio 15+`; } return {precio:fin,detalle:det}; }
-
-// ===== UTILS =====
 function buscarProducto(texto){ let t=texto.toUpperCase(); if(t.includes("BEE")) return "BEE F6"; if(t.includes("J10")) return "J10"; if(t.includes("F39")) return "F39"; if(t.includes("F22")) return "F22"; if(t.includes("F6")) return "F6"; if(t.includes("PEDESTAL")) return "PEDESTAL"; if(t.includes("NEVERA")) return "NEVERA"; if(t.includes("EXHIBIDORA")) return "EXHIBIDORA"; if(t.includes("FRIO")||t.includes("FRÍO")) return "FRIO"; if(t.includes("TV")||t.includes("TELEVISOR")) return "TV"; if(t.includes("COLCHON")||t.includes("COLCHÓN")) return "COLCHON"; if(t.includes("REINA")) return "REINA"; if(t.includes("ARROCERA")) return "ARROCERA"; if(t.includes("INFRARROJO")) return "INFRARROJO"; if(t.includes("VENTILADOR")) return "VENTILADOR"; if(t.includes("MICROWAVE")||t.includes("MICROONDAS")) return "MICROWAVE"; if(t.includes("FREIDORA")) return "FREIDORA"; if(t.includes("MOTOR")) return "MOTOR AGUA"; if(t.includes("PULIDORA")) return "PULIDORA"; if(t.includes("OLLA")) return "OLLA PRESION"; if(t.includes("BATIDORA")) return "BATIDORA"; if(t.includes("CAFETERA")) return "CAFETERA"; if(t.includes("FILTRO")) return "FILTRO AGUA"; if(t.includes("COCINA") && t.includes("HORNO")) return "COCINA HORNO"; if(t.includes("COCINA")) return "COCINA ELECTRICA"; if(t.includes("TOSTADORA")) return "TOSTADORA"; if(t.includes("BOCINA")) return "BOCINA"; if(t.includes("SARTEN")||t.includes("SARTÉN")) return "SARTEN"; if(t.includes("CALDERO")) return "CALDEROS"; if(t.includes("FREGADERO")) return "FREGADERO"; if(t.includes("TALADRO")) return "TALADRO"; if(t.includes("CUCHILLO")) return "CUCHILLOS"; if(t.includes("CASCO")) return "CASCO MOTO"; if(t.includes("FOGON")||t.includes("FOGÓN")) return "FOGON"; if(t.includes("LAVADORA")) return "LAVADORA"; if(t.includes("SPLIT")) return "SPLIT"; if(t.includes("REFRIGERADOR")) return "REFRIGERADOR"; if(t.includes("FREGADORA")) return "FREGADORA MOTO"; if(t.includes("DISPENSADOR")) return "DISPENSADOR"; if(t.includes("PANEL")) return "PANEL SOLAR"; if(t.includes("ESTANTE")) return "ESTANTE"; if(t.includes("CALENTADOR")) return "CALENTADOR"; if(t.includes("CAJA FUERTE")||t.includes("CAJA")) return "CAJA FUERTE"; return null; }
 function sacarNumero(texto){ let m=(texto||'').match(/(53)?(\d{8})/); if(!m) return null; return '53'+m[2]; }
 function limpiarNombre(texto){ return (texto||'').replace(/(53)?\d{8}/g,'').replace(/\s+/g,' ').trim(); }
@@ -125,8 +114,6 @@ function esSpam(t){ let x=t.toLowerCase(); return PROHIBIDAS.some(p=>x.includes(
 function guardarDuda(grupo, quien, preg, resp=''){ if(!preg||preg.length<8) return; if(esSpam(preg)) return; if(DUDAS.find(d=>d.pregunta.toLowerCase()===preg.toLowerCase())) return; DUDAS.push({grupo,quien,pregunta:preg,respuesta:resp,fecha:hoyCuba(),veces:1}); if(DUDAS.length>500) DUDAS=DUDAS.slice(-500); guardar('dudas_base',DUDAS); }
 function buscarDuda(preg){ let t=preg.toLowerCase(); let pal=t.split(' ').filter(w=>w.length>3); let mejor=null,scoreMax=0; for(let d of DUDAS){ let s=0; for(let p of pal) if(d.pregunta.toLowerCase().includes(p)) s++; if(d.respuesta) s+=1; if(s>scoreMax){ scoreMax=s; mejor=d; } } if(mejor&&scoreMax>=2) return mejor; return null; }
 async function publicarFB(texto, foto=''){ if(FB_PAGE_ID.includes('PON_')) return '❌ Falta poner FB_PAGE_ID y FB_PAGE_TOKEN arriba.'; try{ let url=`https://graph.facebook.com/v19.0/${FB_PAGE_ID}/feed`; let body={message:texto,access_token:FB_PAGE_TOKEN}; if(foto){ url=`https://graph.facebook.com/v19.0/${FB_PAGE_ID}/photos`; body={url:foto,caption:texto,access_token:FB_PAGE_TOKEN}; } const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); const d=await r.json(); if(d.id) return `✅ Publicado en Facebook 👑\nID: ${d.id}`; return `❌ FB: ${JSON.stringify(d)}`; }catch(e){ return `❌ Error FB: ${e.message}`; } }
-
-// ===== TIMERS =====
 setInterval(async()=>{
   let ahora=fechaCuba(); let h=ahora.getHours(); let min=ahora.getMinutes(); let hoy=hoyCuba();
   if(h===20 && min===0 && !ESPERANDO_ALMACEN && sockGlobal){ ESPERANDO_ALMACEN=true; try{ await sockGlobal.sendMessage(GRUPO_ALMACEN,{text:`📦 *ACTUALIZACION ALMACEN 8 PM - KAIROS* 👑\nManden así:\nllegó J10 10\n\nVer: ver almacen`}); }catch(e){} setTimeout(()=>{ ESPERANDO_ALMACEN=false; },3600000); }
@@ -137,8 +124,6 @@ setInterval(async()=>{
   let dia=ahora.getDay(); if(dia===0 && h===18 && min===0 && YA_CIERRE!==hoy && sockGlobal){ YA_CIERRE=hoy; try{ await sockGlobal.sendMessage(ADMIN_NUMERO,{text:cierreSemanal()}); }catch(e){} }
 },60000);
 setInterval(async()=>{ let ahora=fechaCuba(); let h=ahora.getHours(); let min=ahora.getMinutes(); let hoy=hoyCuba(); if(h===17 && min===0 && YA_5PM!==hoy && sockGlobal){ YA_5PM=hoy; let vHoy=Object.values(VALES).filter(v=>v.fecha===hoy); if(!vHoy.length){ await sockGlobal.sendMessage(ADMIN_NUMERO,{text:`📊 5 PM - Hoy no hubo ventas, Louis 👑`}); return; } let men=vHoy.filter(v=>v.tipo_entrega==='mensajeria'); let rec=vHoy.filter(v=>v.tipo_entrega==='recogida'); let msg=`📊 *CIERRE 5 PM - ${hoy} - KAIROS* 👑\nTotal: ${vHoy.length}\n\n🚚 *MENSAJERÍA (${men.length})*\n`; men.forEach(v=>{ msg+=`• ${v.codigo} - ${v.comercial} - ${v.cliente} - ${v.productos.map(p=>p.nombre+' x'+p.cant).join(', ')} - ${v.totalUSD} USD - ${v.estado}\n`; }); msg+=`\n🏪 *RECOGIDA (${rec.length})*\n`; rec.forEach(v=>{ msg+=`• ${v.codigo} - ${v.comercial} - ${v.cliente} - ${v.productos.map(p=>p.nombre+' x'+p.cant).join(', ')} - ${v.totalUSD} USD - ${v.estado}\n`; }); msg+=`\n✅ entregado KAIROS-001\n❌ no entregado KAIROS-001 motivo\n⚡ entregado todo`; await sockGlobal.sendMessage(ADMIN_NUMERO,{text:msg}); if(SEGUNDO_LIDS.length>0){ try{ await sockGlobal.sendMessage(SEGUNDO_LIDS[0],{text:msg}); }catch(e){} } } if(h===16 && min===59) YA_5PM=""; },60000);
-
-// ===== BOT - SOLO QR =====
 async function start(){
   const { version } = await fetchLatestBaileysVersion();
   const { state, saveCreds } = await useMultiFileAuthState('auth_info');
@@ -181,11 +166,41 @@ async function start(){
       }
       if(esSpam(rawText) && !esAdmin && !esSegundo){ try{ await sock.sendMessage(from,{delete: m.key}); }catch(e){} await send(`⚠️ No se permite links de otros negocios.`); return; }
       if(from===GRUPO_ALMACEN){
+        // SI ESTA ESPERANDO ELEGIR ALMACEN, ESTE MENSAJE ES LA RESPUESTA
+        if(PENDIENTE_ALM[from]){
+          let alm = text.toUpperCase().trim();
+          if(alm==='1') alm='A1'; if(alm==='2') alm='A2'; if(alm==='3') alm='A3';
+          if(alm==='A1' || alm==='A2' || alm==='A3'){
+            let pen = PENDIENTE_ALM[from]; delete PENDIENTE_ALM[from];
+            let clave = pen.clave; let cant = pen.cant;
+            if(!ALMACEN[clave]){ ALMACEN[clave]={A1:0,A2:0,A3:0}; if(!CATALOGO[clave]) CATALOGO[clave]={nombre:clave,precio:0,desc:"Nuevo"}; }
+            if(typeof ALMACEN[clave]==='number') ALMACEN[clave]+=cant; else { if(!ALMACEN[clave][alm]) ALMACEN[clave][alm]=0; ALMACEN[clave][alm]+=cant; }
+            guardar('almacen',ALMACEN);
+            await send(`✅ *GUARDADO* 👑\n${clave} +${cant} en ${alm}\nTotal: ${stockTotal(clave)} (A1:${ALMACEN[clave].A1||0} | A2:${ALMACEN[clave].A2||0} | A3:${ALMACEN[clave].A3||0})`);
+            return;
+          }
+        }
         if(text.startsWith('llegó ')||text.startsWith('llego ')||text.startsWith('entrada ')||text.startsWith('entró ')||text.startsWith('entro ')){
-          let partes=rawText.split(' '); partes.shift(); let prodTxt=partes.slice(0,-1).join(' '); let cant=parseInt(partes[partes.length-1]); let clave=buscarProducto(prodTxt)||prodTxt.toUpperCase();
+          let partes=rawText.split(' '); partes.shift();
+          // Si el ultimo es A1/A2/A3 o 1/2/3, es directo
+          let ultimoRaw = partes[partes.length-1].toUpperCase();
+          let almDirecto = null;
+          if(ultimoRaw==='A1'||ultimoRaw==='A2'||ultimoRaw==='A3') almDirecto=ultimoRaw;
+          if(ultimoRaw==='1') almDirecto='A1'; if(ultimoRaw==='2') almDirecto='A2'; if(ultimoRaw==='3') almDirecto='A3';
+          if(almDirecto) partes.pop();
+          let prodTxt=partes.slice(0,-1).join(' '); let cant=parseInt(partes[partes.length-1]); let clave=buscarProducto(prodTxt)||prodTxt.toUpperCase();
           if(!clave||isNaN(cant)){ await send(`No entendí. Usa: llegó J10 10`); return; }
-          if(!ALMACEN[clave]){ ALMACEN[clave]={A1:cant,A2:0,A3:0}; if(!CATALOGO[clave]) CATALOGO[clave]={nombre:clave,precio:0,desc:"Nuevo"}; if(!PROD_ALM[clave]) PROD_ALM[clave]='A1'; guardar('almacen',ALMACEN); guardar('producto_almacen',PROD_ALM); await send(`✅ *PRODUCTO NUEVO* 👑\n${clave} = ${cant} en A1`); return; }
-          let alm=PROD_ALM[clave]||'A1'; if(typeof ALMACEN[clave]==='number') ALMACEN[clave]+=cant; else { if(!ALMACEN[clave][alm]) ALMACEN[clave][alm]=0; ALMACEN[clave][alm]+=cant; } guardar('almacen',ALMACEN); await send(`✅ *ACTUALIZADO* 👑\n${clave} +${cant} en ${alm}\nTotal: ${stockTotal(clave)} (A1:${ALMACEN[clave].A1||0} | A2:${ALMACEN[clave].A2||0} | A3:${ALMACEN[clave].A3||0})`); return;
+          if(almDirecto){
+            if(!ALMACEN[clave]){ ALMACEN[clave]={A1:0,A2:0,A3:0}; if(!CATALOGO[clave]) CATALOGO[clave]={nombre:clave,precio:0,desc:"Nuevo"}; }
+            if(typeof ALMACEN[clave]==='number') ALMACEN[clave]+=cant; else { if(!ALMACEN[clave][almDirecto]) ALMACEN[clave][almDirecto]=0; ALMACEN[clave][almDirecto]+=cant; }
+            guardar('almacen',ALMACEN);
+            await send(`✅ *GUARDADO* 👑\n${clave} +${cant} en ${almDirecto}\nTotal: ${stockTotal(clave)} (A1:${ALMACEN[clave].A1||0} | A2:${ALMACEN[clave].A2||0} | A3:${ALMACEN[clave].A3||0})`);
+            return;
+          }
+          // Si no dijo almacen, preguntar
+          PENDIENTE_ALM[from]={clave, cant};
+          await send(`📦 *LLEGÓ ${clave} x${cant}* 👑\n\n¿En qué almacén lo pongo?\n\n1️⃣ A1 - ${DIR_ALM['A1']}\n2️⃣ A2 - ${DIR_ALM['A2']}\n3️⃣ A3 - ${DIR_ALM['A3']}\n\nEscribe *A1*, *A2* o *A3* (o solo 1, 2 o 3)`);
+          return;
         }
         if(text.startsWith('nuevo producto ')){ let partes=rawText.replace(/nuevo producto /i,'').trim().split(' '); let clave=partes[0]?.toUpperCase(); let cant=parseInt(partes[1]); let precio=parseInt(partes[2])||0; if(!clave||isNaN(cant)){ await send(`Usa: nuevo producto J20 50 45`); return; } ALMACEN[clave]={A1:cant,A2:0,A3:0}; CATALOGO[clave]={nombre:clave,precio:precio,desc:"Nuevo"}; PROD_ALM[clave]='A1'; guardar('almacen',ALMACEN); guardar('producto_almacen',PROD_ALM); await send(`✅ *PRODUCTO NUEVO* 👑\n${clave} Stock:${cant} Precio:${precio} USD`); return; }
         if(text.startsWith('precio ')){ let partes=rawText.split(' '); let clave=partes[1]?.toUpperCase(); let precio=parseInt(partes[2]); if(CATALOGO[clave]){ CATALOGO[clave].precio=precio; await send(`✅ Precio ${clave} = ${precio} USD`); } return; }
@@ -241,7 +256,6 @@ async function start(){
     if(text.startsWith('entregado kairos-')){ if(!esAdmin && !esSegundo) return; let cod='KAIROS-'+rawText.split('-').pop().trim().toUpperCase().replace('KAIROS-',''); let v=VALES[cod]; if(v){ v.estado='entregado'; guardar('vales',VALES); if(ENTREGAS[cod]){ delete ENTREGAS[cod]; guardar('entregas_pendientes',ENTREGAS); } await send(`✅ ${cod} entregado.\n\nMensaje cliente:\n🙏 *GRACIAS POR COMPRAR EN KAIROS* 👑\n${v.cliente}, gracias por tu compra. Tienes 30 dias de garantia.`); } return; }
     if(text==='entregado todo' && (esAdmin||esSegundo)){ let hoy=hoyCuba(); let c=0; for(let k in VALES) if(VALES[k].fecha===hoy && VALES[k].estado==='confirmado'){ VALES[k].estado='entregado'; c++; } guardar('vales',VALES); await send(`✅ ${c} vales entregados hoy.`); return; }
     if(text.startsWith('no entregado kairos-')){ if(!esAdmin && !esSegundo) return; let partes=rawText.split(' '); let cod='KAIROS-'+partes[2].split('-').pop().trim().toUpperCase(); let mot=partes.slice(3).join(' '); let v=VALES[cod]; if(v){ v.estado='no entregado'; v.motivo=mot; guardar('vales',VALES); await send(`❌ ${cod} NO entregado.\nMotivo: ${mot}`); } return; }
-    // ===== PEDIDO PASO A PASO =====
     if(text==='pedido' || text==='nuevo pedido'){
       PASOS[from] = {paso:'producto'};
       await send(`📝 *NUEVO PEDIDO* 👑\n\n¿Qué producto quieres?\nEj: J10, F6, Nevera`);
@@ -249,47 +263,15 @@ async function start(){
     }
     if(PASOS[from]){
       let p = PASOS[from];
-      if(text==='cancelar'){
-        delete PASOS[from];
-        await send(`Pedido cancelado. Escribe *pedido* para empezar otro.`);
-        return;
-      }
-      if(p.paso==='producto'){
-        let clave = buscarProducto(rawText);
-        if(!clave){ await send(`No encontré ese producto. Escribe: catalogo`); return; }
-        p.clave = clave; p.paso='cantidad';
-        await send(`✅ *${CATALOGO[clave].nombre}* - ${CATALOGO[clave].precio} USD - Stock: ${stockTotal(clave)}\n\n¿Cuántos quieres? Ej: 2`);
-        return;
-      }
-      if(p.paso==='cantidad'){
-        let cant = parseInt(text.replace(/[^0-9]/g,''));
-        if(!cant){ await send(`Dime solo el número. Ej: 2`); return; }
-        if(stockTotal(p.clave) < cant){ await send(`❌ Solo quedan ${stockTotal(p.clave)} de ${p.clave}`); return; }
-        p.cant = cant; p.paso='cliente';
-        await send(`✅ ${cant} x ${CATALOGO[p.clave].nombre}\n\n¿Nombre del cliente?`);
-        return;
-      }
-      if(p.paso==='cliente'){
-        p.cliente = rawText; p.paso='telefono';
-        await send(`✅ Cliente: ${rawText}\n\n¿Teléfono del cliente? Ej: 56947882`);
-        return;
-      }
-      if(p.paso==='telefono'){
-        let tel = sacarNumero(rawText);
-        if(!tel){ await send(`Ese número no me sirve. Mándalo así: 56947882`); return; }
-        p.telefono = tel; p.paso='direccion';
-        await send(`✅ Teléfono: ${tel}\n\n¿Dirección del cliente? Ej: San Miguel, calle 1`);
-        return;
-      }
-      if(p.paso==='direccion'){
-        p.direccion = rawText; p.paso='entrega';
-        await send(`✅ Dirección: ${rawText}\n\n¿Entrega por *mensajeria* o *recogida*?`);
-        return;
-      }
+      if(text==='cancelar'){ delete PASOS[from]; await send(`Pedido cancelado. Escribe *pedido* para empezar otro.`); return; }
+      if(p.paso==='producto'){ let clave = buscarProducto(rawText); if(!clave){ await send(`No encontré ese producto. Escribe: catalogo`); return; } p.clave = clave; p.paso='cantidad'; await send(`✅ *${CATALOGO[clave].nombre}* - ${CATALOGO[clave].precio} USD - Stock: ${stockTotal(clave)}\n\n¿Cuántos quieres? Ej: 2`); return; }
+      if(p.paso==='cantidad'){ let cant = parseInt(text.replace(/[^0-9]/g,'')); if(!cant){ await send(`Dime solo el número. Ej: 2`); return; } if(stockTotal(p.clave) < cant){ await send(`❌ Solo quedan ${stockTotal(p.clave)} de ${p.clave}`); return; } p.cant = cant; p.paso='cliente'; await send(`✅ ${cant} x ${CATALOGO[p.clave].nombre}\n\n¿Nombre del cliente?`); return; }
+      if(p.paso==='cliente'){ p.cliente = rawText; p.paso='telefono'; await send(`✅ Cliente: ${rawText}\n\n¿Teléfono del cliente? Ej: 56947882`); return; }
+      if(p.paso==='telefono'){ let tel = sacarNumero(rawText); if(!tel){ await send(`Ese número no me sirve. Mándalo así: 56947882`); return; } p.telefono = tel; p.paso='direccion'; await send(`✅ Teléfono: ${tel}\n\n¿Dirección del cliente? Ej: San Miguel, calle 1`); return; }
+      if(p.paso==='direccion'){ p.direccion = rawText; p.paso='entrega'; await send(`✅ Dirección: ${rawText}\n\n¿Entrega por *mensajeria* o *recogida*?`); return; }
       if(p.paso==='entrega'){
         let tipo = text.includes('recog') ? 'recogida' : 'mensajeria';
-        let clave = p.clave; let cant = p.cant;
-        let precio = CATALOGO[clave]?.precio||0; let total = precio*cant;
+        let clave = p.clave; let cant = p.cant; let precio = CATALOGO[clave]?.precio||0; let total = precio*cant;
         let codigo = `KAIROS-${String(CONTADOR).padStart(3,'0')}`; CONTADOR++; guardar('contador',CONTADOR);
         let mens = null; if(tipo==='mensajeria') mens = calcularMensajeria(p.direccion,[{clave,cant}],p.direccion);
         CLIENTES[p.telefono] = {nombre:p.cliente, telefono:p.telefono, direccion:p.direccion, ultimoPedido:codigo, fecha:hoyCuba()}; guardar('clientes',CLIENTES);
@@ -325,10 +307,9 @@ async function start(){
       try{ await sock.sendMessage(ADMIN_NUMERO,{text:`🔔 *NUEVO PEDIDO ${codigo}*\nGestor: ${pushName}\nCliente: ${cliente} - ${tel}\n${CATALOGO[clave].nombre} x${cant} - ${total} USD - Comision: ${vale.comision} CUP\nEntrega: ${tipo} - ${direccion}\nEnlace: ${rLink}\n\nConfirma: OK confirmado ${codigo}`}); }catch(e){}
       return;
     }
-    // Si escribe solo el producto, no mandar bienvenida
     let claveSola = buscarProducto(rawText);
     if(claveSola && !text.startsWith('pedido')){
-      await send(`👑 Quieres pedir *${CATALOGO[claveSola].nombre}* ?\nPrecio: ${CATALOGO[claveSola].precio} USD\nStock: ${stockTotal(claveSola)}\nComision: ${comisionPorClave(claveSola)} CUP\n\nMandalo asi para crearlo:\nEscribe *pedido* y yo te voy preguntando paso a paso 👑`);
+      await send(`👑 Quieres pedir *${CATALOGO[claveSola].nombre}* ?\nPrecio: ${CATALOGO[claveSola].precio} USD\nStock: ${stockTotal(claveSola)}\nComision: ${comisionPorClave(claveSola)} CUP\n\nEscribe *pedido* y yo te voy preguntando paso a paso 👑`);
       return;
     }
     if(esSpam(rawText)){ await send(`No se permite enlaces de otros negocios.`); return; }
