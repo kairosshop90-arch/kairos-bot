@@ -29,6 +29,7 @@ let GRUPOS_ESCUCHA = cargar('grupos_escucha',[]);
 let OFERTAS = cargar('ofertas_guardadas',[]);
 let ENTREGAS = cargar('entregas_pendientes',{});
 let ULTIMOS = {};
+let PASOS = {};
 let sockGlobal = null;
 let YA_5PM = ""; let YA_RESPALDO = ""; let YA_CIERRE = ""; let ESPERANDO_ALMACEN = false;
 
@@ -218,7 +219,7 @@ async function start(){
     if(text.startsWith('mandar enlace ') && (esAdmin||esSegundo)){ let cod='KAIROS-'+rawText.split('-').pop().trim().toUpperCase().replace('KAIROS-',''); let v=VALES[cod]; if(!v||!v.telefonoCliente){ await send(`Ese vale no tiene numero.`); return; } let r=await enviarEnlace(sock,v); await send(r==='enviado' ? `✅ Enlace reenviado a ${v.cliente}` : `❌ No pude: ${r}`); return; }
     if(text==='ver clientes' && (esAdmin||esSegundo)){ let lista=Object.values(CLIENTES); if(!lista.length){ await send(`No hay clientes.`); return; } await send(`👥 *CLIENTES - ${lista.length}*\n\n${lista.slice(-20).map(c=>`• ${c.nombre} - ${c.telefono} - Ultimo: ${c.ultimoPedido||''}`).join('\n')}`); return; }
     if((text==='ver comisiones'||text==='ver vales'||text==='ver almacen') && !esAdmin && !esSegundo){ await send(`⛔ Solo Louis y Segundo Jefe.`); return; }
-    if(text==='menu'||text==='ayuda'||text==='help'){ await send(`👑 *KAIROS - MENU*\n\n• catalogo\n• comisiones\n• ver almacen\n• ver vales\n• ver comisiones\n• ver clientes\n• tasa actual / tasa 950 / tasa auto\n• ver cola / confirmar cola\n• oferta relampago\n• publicar / publicar [texto]\n• buscar oferta J10\n• ver dudas\n• resumen del dia\n• estadisticas producto J10\n• que se vende mas\n• foto entrega KAIROS-001\n• cierre semanal\n• mandar enlace KAIROS-001\n• pedido J10 x2 - Maria 56947882 - San Miguel - mensajeria`); return; }
+    if(text==='menu'||text==='ayuda'||text==='help'){ await send(`👑 *KAIROS - MENU*\n\n• catalogo\n• comisiones\n• ver almacen\n• ver vales\n• ver comisiones\n• ver clientes\n• tasa actual / tasa 950 / tasa auto\n• ver cola / confirmar cola\n• oferta relampago\n• publicar / publicar [texto]\n• buscar oferta J10\n• ver dudas\n• resumen del dia\n• estadisticas producto J10\n• que se vende mas\n• foto entrega KAIROS-001\n• cierre semanal\n• mandar enlace KAIROS-001\n• pedido (paso a paso) o pedido J10 x2 - Maria 56947882 - San Miguel - mensajeria`); return; }
     if(text==='catalogo'||text==='catálogo'){ let txt=`👑 *CATALOGO KAIROS*\nTasa: ${TASA_MN} CUP\n\n`; for(let k in CATALOGO) txt+=`• ${k} - ${CATALOGO[k].nombre} - ${CATALOGO[k].precio} USD - Stock: ${stockTotal(k)} - Comision: ${comisionPorClave(k)} CUP\n`; await send(txt); return; }
     if(text==='comisiones'){ await send(`💎 *COMISIONES OFICIALES*\n\n1200: Reinas, Arroceras, Infrarrojos, Ventiladores, Microwave, Freidora, Motor Agua, Pulidoras, Olla Presion, Batidoras, Cafeteras, Filtro Agua, Pedestal\n1000: Cocinas Electricas, Tostadoras, Bocinas, Sarten, Calderos, J10, F39, F22, F6, Bee F6\n700: Fregadero\n500: Taladros, Cuchillos, Cascos Moto, Fogon\n2500: Lavadoras, Neveras, Split, Refrigeradores, Fregadora Moto, Dispensador, Frio, Exhibidora\n2000: Colchones, Cocinas Horno, TV, Paneles\n1500: Estantes, Calentador, Caja Fuerte`); return; }
     if(text==='ver almacen' && (esAdmin||esSegundo)){ let txt=`📦 *ALMACÉN*\n\n`; for(let k in ALMACEN) txt+=`${k}: ${stockTotal(k)} (A1:${ALMACEN[k].A1||0} A2:${ALMACEN[k].A2||0} A3:${ALMACEN[k].A3||0})\n`; await send(txt); return; }
@@ -240,6 +241,67 @@ async function start(){
     if(text.startsWith('entregado kairos-')){ if(!esAdmin && !esSegundo) return; let cod='KAIROS-'+rawText.split('-').pop().trim().toUpperCase().replace('KAIROS-',''); let v=VALES[cod]; if(v){ v.estado='entregado'; guardar('vales',VALES); if(ENTREGAS[cod]){ delete ENTREGAS[cod]; guardar('entregas_pendientes',ENTREGAS); } await send(`✅ ${cod} entregado.\n\nMensaje cliente:\n🙏 *GRACIAS POR COMPRAR EN KAIROS* 👑\n${v.cliente}, gracias por tu compra. Tienes 30 dias de garantia.`); } return; }
     if(text==='entregado todo' && (esAdmin||esSegundo)){ let hoy=hoyCuba(); let c=0; for(let k in VALES) if(VALES[k].fecha===hoy && VALES[k].estado==='confirmado'){ VALES[k].estado='entregado'; c++; } guardar('vales',VALES); await send(`✅ ${c} vales entregados hoy.`); return; }
     if(text.startsWith('no entregado kairos-')){ if(!esAdmin && !esSegundo) return; let partes=rawText.split(' '); let cod='KAIROS-'+partes[2].split('-').pop().trim().toUpperCase(); let mot=partes.slice(3).join(' '); let v=VALES[cod]; if(v){ v.estado='no entregado'; v.motivo=mot; guardar('vales',VALES); await send(`❌ ${cod} NO entregado.\nMotivo: ${mot}`); } return; }
+    // ===== PEDIDO PASO A PASO =====
+    if(text==='pedido' || text==='nuevo pedido'){
+      PASOS[from] = {paso:'producto'};
+      await send(`📝 *NUEVO PEDIDO* 👑\n\n¿Qué producto quieres?\nEj: J10, F6, Nevera`);
+      return;
+    }
+    if(PASOS[from]){
+      let p = PASOS[from];
+      if(text==='cancelar'){
+        delete PASOS[from];
+        await send(`Pedido cancelado. Escribe *pedido* para empezar otro.`);
+        return;
+      }
+      if(p.paso==='producto'){
+        let clave = buscarProducto(rawText);
+        if(!clave){ await send(`No encontré ese producto. Escribe: catalogo`); return; }
+        p.clave = clave; p.paso='cantidad';
+        await send(`✅ *${CATALOGO[clave].nombre}* - ${CATALOGO[clave].precio} USD - Stock: ${stockTotal(clave)}\n\n¿Cuántos quieres? Ej: 2`);
+        return;
+      }
+      if(p.paso==='cantidad'){
+        let cant = parseInt(text.replace(/[^0-9]/g,''));
+        if(!cant){ await send(`Dime solo el número. Ej: 2`); return; }
+        if(stockTotal(p.clave) < cant){ await send(`❌ Solo quedan ${stockTotal(p.clave)} de ${p.clave}`); return; }
+        p.cant = cant; p.paso='cliente';
+        await send(`✅ ${cant} x ${CATALOGO[p.clave].nombre}\n\n¿Nombre del cliente?`);
+        return;
+      }
+      if(p.paso==='cliente'){
+        p.cliente = rawText; p.paso='telefono';
+        await send(`✅ Cliente: ${rawText}\n\n¿Teléfono del cliente? Ej: 56947882`);
+        return;
+      }
+      if(p.paso==='telefono'){
+        let tel = sacarNumero(rawText);
+        if(!tel){ await send(`Ese número no me sirve. Mándalo así: 56947882`); return; }
+        p.telefono = tel; p.paso='direccion';
+        await send(`✅ Teléfono: ${tel}\n\n¿Dirección del cliente? Ej: San Miguel, calle 1`);
+        return;
+      }
+      if(p.paso==='direccion'){
+        p.direccion = rawText; p.paso='entrega';
+        await send(`✅ Dirección: ${rawText}\n\n¿Entrega por *mensajeria* o *recogida*?`);
+        return;
+      }
+      if(p.paso==='entrega'){
+        let tipo = text.includes('recog') ? 'recogida' : 'mensajeria';
+        let clave = p.clave; let cant = p.cant;
+        let precio = CATALOGO[clave]?.precio||0; let total = precio*cant;
+        let codigo = `KAIROS-${String(CONTADOR).padStart(3,'0')}`; CONTADOR++; guardar('contador',CONTADOR);
+        let mens = null; if(tipo==='mensajeria') mens = calcularMensajeria(p.direccion,[{clave,cant}],p.direccion);
+        CLIENTES[p.telefono] = {nombre:p.cliente, telefono:p.telefono, direccion:p.direccion, ultimoPedido:codigo, fecha:hoyCuba()}; guardar('clientes',CLIENTES);
+        let vale = {codigo, comercial:pushName, cliente:p.cliente, telefonoCliente:p.telefono, direccion:p.direccion, productos:[{clave, nombre:CATALOGO[clave].nombre, cant}], totalUSD:total, mensajeria:mens?.precio||0, detalleMensajeria:mens?.detalle||'', tipo_entrega:tipo, estado:'pendiente', fecha:hoyCuba(), comision:comisionPorClave(clave)*cant, linkEnviado:false};
+        VALES[codigo] = vale; guardar('vales',VALES);
+        let rLink = await enviarEnlace(sock, vale); if(rLink==='enviado') vale.linkEnviado=true; guardar('vales',VALES);
+        delete PASOS[from];
+        await send(`📝 *VALE CREADO ${codigo}* 👑\nCliente: ${p.cliente}\nTeléfono: ${p.telefono}\nProducto: ${CATALOGO[clave].nombre} x${cant}\nDirección: ${p.direccion}\nTotal: ${total} USD\nComisión: ${vale.comision} CUP\nEntrega: ${tipo} ${mens?`- Mensajería: ${mens.precio} CUP`:''}\n\nLouis confirma con:\nOK confirmado ${codigo}`);
+        try{ await sock.sendMessage(ADMIN_NUMERO,{text:`🔔 *NUEVO PEDIDO ${codigo}*\nGestor: ${pushName}\nCliente: ${p.cliente} - ${p.telefono}\n${CATALOGO[clave].nombre} x${cant} - ${total} USD`}); }catch(e){}
+        return;
+      }
+    }
     if(text.startsWith('pedido ')){
       let resto=rawText.replace(/pedido /i,'').trim(); let partes=resto.split(' - ').map(s=>s.trim());
       if(partes.length<3){ await send(`Usa asi:\npedido J10 x2 - Maria Perez - 56947882 - San Miguel, calle 1 - mensajeria`); return; }
@@ -263,12 +325,12 @@ async function start(){
       try{ await sock.sendMessage(ADMIN_NUMERO,{text:`🔔 *NUEVO PEDIDO ${codigo}*\nGestor: ${pushName}\nCliente: ${cliente} - ${tel}\n${CATALOGO[clave].nombre} x${cant} - ${total} USD - Comision: ${vale.comision} CUP\nEntrega: ${tipo} - ${direccion}\nEnlace: ${rLink}\n\nConfirma: OK confirmado ${codigo}`}); }catch(e){}
       return;
     }
-// Si escribe solo el producto, no mandar bienvenida
-let claveSola = buscarProducto(rawText);
-if(claveSola && !text.startsWith('pedido')){
-  await send(`👑 Quieres pedir *${CATALOGO[claveSola].nombre}* ?\nPrecio: ${CATALOGO[claveSola].precio} USD\nStock: ${stockTotal(claveSola)}\nComision: ${comisionPorClave(claveSola)} CUP\n\nMandalo asi para crearlo:\npedido ${claveSola} x1 - Maria Perez - 56947882 - San Miguel - mensajeria`);
-  return;
-}
+    // Si escribe solo el producto, no mandar bienvenida
+    let claveSola = buscarProducto(rawText);
+    if(claveSola && !text.startsWith('pedido')){
+      await send(`👑 Quieres pedir *${CATALOGO[claveSola].nombre}* ?\nPrecio: ${CATALOGO[claveSola].precio} USD\nStock: ${stockTotal(claveSola)}\nComision: ${comisionPorClave(claveSola)} CUP\n\nMandalo asi para crearlo:\nEscribe *pedido* y yo te voy preguntando paso a paso 👑`);
+      return;
+    }
     if(esSpam(rawText)){ await send(`No se permite enlaces de otros negocios.`); return; }
     if(text.includes('garantia')||text.includes('garantía')){ await send(`Dale, tiene 30 días de garantía en tienda. Si falla, te lo cambiamos 👑`); return; }
     if(text.includes('donde estan')||text.includes('donde están')||text.includes('ubicacion')){ await send(`Estamos en La Habana, domicilio a toda La Habana. Dime tu reparto y te calculo mensajería.`); return; }
@@ -277,8 +339,8 @@ if(claveSola && !text.startsWith('pedido')){
     let duda=buscarDuda(rawText);
     if(duda && duda.respuesta){ await send(`Dale 👑 Eso ya lo preguntaron:\n\n*Pregunta:* ${duda.pregunta}\n*Respuesta:* ${duda.respuesta}`); return; }
     if(duda && !duda.respuesta){ duda.veces=(duda.veces||1)+1; guardar('dudas_base',DUDAS); await send(`Esa duda ya la preguntaron ${duda.veces} veces y aun no tiene respuesta. Se la paso a Louis 👑`); try{ await sock.sendMessage(ADMIN_NUMERO,{text:`❓ *DUDA SIN RESPUESTA - ${duda.veces} veces*\n${duda.pregunta}\nResponde: respuesta: ${duda.pregunta} = [tu respuesta]`}); }catch(e){} return; }
-    if(!esHorario()){ await send(`Dale 👑 Estamos cerrados, te atendemos a las 8 AM.\nDejame tu pedido asi:\npedido J10 x2 - Maria 56947882 - San Miguel - mensajeria`); return; }
-    await send(`Hola ${pushName} 👑 Soy KAIROS.\nEscribe *menu* para ver todo.\nPara pedir:\npedido J10 x2 - Maria 56947882 - San Miguel - mensajeria`);
+    if(!esHorario()){ await send(`Dale 👑 Estamos cerrados, te atendemos a las 8 AM.\nDejame tu pedido asi:\nEscribe *pedido* y te voy preguntando`); return; }
+    await send(`Hola ${pushName} 👑 Soy KAIROS.\nEscribe *menu* para ver todo.\nPara pedir escribe *pedido* y te voy preguntando paso a paso`);
   });
 }
 start();
