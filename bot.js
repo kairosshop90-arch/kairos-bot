@@ -32,7 +32,7 @@ let ALMACEN = {
 };
 
 // ===== CATALOGO = MISMA INFO DEL CANAL - SOLO TEXTO, SIN FOTO =====
-const CATALOGO = {
+let CATALOGO = {
   "J10": { nombre: "J10 Recargable", precio: 40, desc: "Solar + Bluetooth + Luz + Radio FM\nBatería 20.000 mAh, hasta 12h" },
   "F39": { nombre: "F39 Solar", precio: 42, desc: "Solar + Bluetooth + Luz\nBatería larga duración" },
   "F22": { nombre: "F22 SACO", precio: 70, desc: "SACO Grande - Potente, Bluetooth + Luz + Solar" },
