@@ -20,7 +20,12 @@ let MODO = "auto";
 let CONTADOR_VALE = 1;
 let pedidos = {};
 let comisiones = {};
+let VALES_GUARDADOS = {};
 const ADMIN_NUMERO = "5356947882@s.whatsapp.net";
+
+// 👇👇 PON AQUÍ LOS ID DE TUS GRUPOS 👇👇
+const GRUPO_MENSAJERIA = "PON_AQUI_ID_GRUPO_MENSAJERIA@g.us";
+const GRUPO_RECOGIDA = "PON_AQUI_ID_GRUPO_RECOGIDA@g.us";
 
 let ALMACENES = {
   "1": { "J10": 10, "F6": 10, "BEE F6": 10, "F39": 10, "F22": 10, "PEDESTAL": 10, "NEVERA": 5, "FRIO": 5, "EXHIBIDORA": 3, "TV": 5, "COLCHON": 5, "LAVADORA": 5 },
@@ -178,9 +183,49 @@ async function start() {
     const rawText = (m.message.conversation || m.message.extendedTextMessage?.text || '');
     const text = rawText.toLowerCase().trim();
     const from = m.key.remoteJid;
-    if (from.endsWith('@g.us')) return;
+    const esGrupo = from.endsWith('@g.us');
     const send = async (t) => { await sock.sendMessage(from, { text: t }); };
+
+    // PARA SACAR EL ID DEL GRUPO - Escribe "id grupo" dentro del grupo
+    if (esGrupo && text === 'id grupo') {
+      await send(`ID de este grupo:\n${from}`);
+      return;
+    }
+    if (esGrupo) return;
+
     const esAdmin = (from === ADMIN_NUMERO);
+
+    // ===== ADMIN CONFIRMA VALE =====
+    // Tu escribes: vale 001 confirmado  o  vale KAIROS-001 confirmado
+    if (esAdmin && text.includes('vale') && text.includes('confirmado')) {
+      let match = text.match(/(\d{1,4})/);
+      if (!match) { await send(`No encontré el número. Ej: vale 001 confirmado`); return; }
+      let num = match[1].padStart(3, '0');
+      let claveVale = `KAIROS-${num}`;
+      let v = VALES_GUARDADOS[claveVale];
+      if (!v) { await send(`No encontré el vale ${claveVale} 😅\n¿Ya se creó? Revisa el número.`); return; }
+      if (v.enviado) { await send(`Ese vale ${claveVale} ya se envió al grupo.`); return; }
+
+      let esRecogida = v.direccion.includes('RECOGIDA');
+      // Quitar número del cliente para mensajería: quita todos los dígitos
+      let clienteSinNumero = v.nombreCliente.replace(/[0-9+\- ]/g, '').replace(/,,/g, ',').trim();
+      if (!clienteSinNumero) clienteSinNumero = v.nombreCliente.split(',')[0];
+
+      if (esRecogida) {
+        try {
+          await sock.sendMessage(GRUPO_RECOGIDA, { text: `🏬 *RECOGIDA EN LOCAL - ${claveVale} CONFIRMADO* ✅\n\n🧾 Vale: ${claveVale}\n👤 Comercial: ${v.nombreComercial}\n👤 Cliente: ${v.nombreCliente}\n\n📦 Productos:\n${v.listaProd}\n💰 Pago: ${v.pago}\n📍 Recogida: ${v.direccion}\n📝 Nota: ${v.nota}\n\n¡Preparar para entregar! 👑` });
+          v.enviado = true;
+          await send(`✅ Vale ${claveVale} enviado al grupo de RECOGIDA 🏬`);
+        } catch(e) { await send(`Error enviando al grupo de recogida. ¿Pusiste bien el ID? ${e.message}`); }
+      } else {
+        try {
+          await sock.sendMessage(GRUPO_MENSAJERIA, { text: `🚚 *MENSAJERÍA - ${claveVale} CONFIRMADO* ✅\n\n🧾 Vale: ${claveVale}\n👤 Comercial: ${v.nombreComercial}\n👤 Cliente: ${clienteSinNumero}\n\n📦 Productos:\n${v.listaProd}\n💰 Pago: ${v.pago}\n🚚 Mensajería: ${v.mensajeria} CUP\n📍 Dirección: ${v.direccion}\n📝 Nota: ${v.nota}\n\n¡A repartir! 👑` });
+          v.enviado = true;
+          await send(`✅ Vale ${claveVale} enviado al grupo de MENSAJERÍA 🚚 (sin número del cliente)`);
+        } catch(e) { await send(`Error enviando al grupo de mensajería. ¿Pusiste bien el ID? ${e.message}`); }
+      }
+      return;
+    }
 
     // ===== SOLO ADMIN =====
     if (esAdmin && text.startsWith('actualizar stock')) {
@@ -254,7 +299,6 @@ async function start() {
 
     let ped = pedidos[from] || { paso: 'inicio', productos: [], nombreComercial: '' };
 
-    // FIX DEL 1: SI YA ESTAS EN PEDIDO, NO VUELVAS A BIENVENIDA
     if ((text.includes('hola') || text.includes('menu') || text.includes('catalogo')) && (!ped.paso || ped.paso === 'inicio')) {
       pedidos[from] = { paso: 'nombre', productos: [] };
       await send(`Hola, bendecido día 🙏\nBienvenido a KAIROS SHOP 👑\n\nAntes de empezar, ¿cómo te llamas? (Nombre del comercial)`);
@@ -290,7 +334,6 @@ async function start() {
       return;
     }
 
-    // ===== TIPO ENTREGA =====
     if (ped.paso === 'tipo_entrega' && text === '1') {
       ped.paso = 'direccion'; pedidos[from] = ped;
       await send(`Perfecto 👑\n\nAhora pásame tu *dirección completa* para calcular la mensajería 📍\nEj: *San Miguel, Entrincado, Calle 5 #123 entre 1ra y 2da*`);
@@ -345,12 +388,24 @@ async function start() {
       CONTADOR_VALE++;
       let totalUSD = ped.productos.reduce((s,p)=>s+p.precio*p.cant,0);
       let listaProd = ped.productos.map(p=>`• ${p.nombre} x${p.cant} - ${p.precio*p.cant} USD`).join('\n');
-      // COMISION POR CADA EQUIPO SUMADA
       let comision = ped.productos.reduce((s,p)=>s + (p.cant * (CATALOGO[p.clave]?.comision || 1200)),0);
       let detalleComision = ped.productos.map(p=>`• ${p.nombre} x${p.cant} = ${p.cant * (CATALOGO[p.clave]?.comision || 1200)} CUP`).join('\n');
       let nc = ped.nombreComercial || 'Sin nombre';
       if (!comisiones[nc]) comisiones[nc] = { ventas: 0, total: 0 };
       comisiones[nc].ventas += 1; comisiones[nc].total += comision;
+
+      // GUARDAR VALE PARA CUANDO TU LO CONFIRMES
+      VALES_GUARDADOS[numeroVale] = {
+        nombreComercial: nc,
+        nombreCliente: ped.nombreCliente,
+        direccion: ped.direccion,
+        listaProd: listaProd,
+        pago: ped.pago,
+        mensajeria: ped.mensajeria,
+        nota: ped.nota,
+        enviado: false
+      };
+
       ped.productos.forEach(p=>{
         let falta = p.cant;
         for (let a of ["1","2","3"]) {
@@ -364,7 +419,7 @@ async function start() {
       });
       await send(`✅ Pedido confirmado 👑\n\n🧾 Vale: *${numeroVale}*\n👤 Comercial: ${nc}\n👤 Cliente: ${ped.nombreCliente}\n\n📦 Productos:\n${listaProd}\nTotal: ${totalUSD} USD\n💰 Pago: ${ped.pago}\n🚚 Mensajería: ${ped.mensajeria} CUP\n📍 Dirección: ${ped.direccion}\n📝 Nota: ${ped.nota}\n\nGracias por comprar en KAIROS SHOP 👑`);
       try {
-        await sock.sendMessage(ADMIN_NUMERO, { text: `🔔 *NUEVO VALE ${numeroVale}*\n\n👤 Comercial: ${nc}\n👤 Cliente: ${ped.nombreCliente}\n📱 Chat: ${from}\n📍 Dirección: ${ped.direccion}\n\n📦 Productos:\n${listaProd}\n💰 Pago: ${ped.pago}\n🚚 Mensajería: ${ped.mensajeria} CUP\n📝 NOTA: ${ped.nota}\n💰 Comisión ${nc}:\n${detalleComision}\nTOTAL COMISIÓN: ${comision} CUP\n\n¡Atender! 👑` });
+        await sock.sendMessage(ADMIN_NUMERO, { text: `🔔 *NUEVO VALE ${numeroVale}*\n\n👤 Comercial: ${nc}\n👤 Cliente: ${ped.nombreCliente}\n📱 Chat: ${from}\n📍 Dirección: ${ped.direccion}\n\n📦 Productos:\n${listaProd}\n💰 Pago: ${ped.pago}\n🚚 Mensajería: ${ped.mensajeria} CUP\n📝 NOTA: ${ped.nota}\n💰 Comisión ${nc}:\n${detalleComision}\nTOTAL COMISIÓN: ${comision} CUP\n\nPara enviar al grupo escribe:\n*vale ${numeroVale.replace('KAIROS-','')} confirmado*\n\n¡Atender! 👑` });
       } catch(e) { console.log('Error aviso admin', e); }
       delete pedidos[from];
       return;
