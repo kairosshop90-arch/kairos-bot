@@ -206,9 +206,41 @@ async function start() {
 
     const esAdmin = ADMINS.includes(from);
 
-    // ACTUALIZAR ALMACEN - ARREGLADO
-    if (text.startsWith('actualizar almacen')) {
-      if (!esAdmin) { await send(`⛔ Solo admin`); return; }
+   // ACTUALIZAR ALMACEN - 3 ALMACENES
+if (text.startsWith('actualizar almacen')) {
+  if (!esAdmin) { await send(`⛔ Solo admin`); return; }
+  let primeraLinea = rawText.split('\n')[0].toLowerCase();
+  let numAlmacen = "1";
+  let todos = primeraLinea.includes('todos') || primeraLinea.includes('todo') || primeraLinea.includes('los 3') || primeraLinea.includes('3 almacenes');
+  if (!todos) {
+    let mNum = primeraLinea.match(/almacen\s*([123])/);
+    if (mNum) numAlmacen = mNum[1];
+  }
+  let destinos = todos ? ["1","2","3"] : [numAlmacen];
+  let lineas = rawText.split('\n').slice(1).filter(l=>l.trim().length>2);
+  if (lineas.length===0) {
+    let resto = rawText.replace(/actualizar almacen.*/i,'').trim();
+    if (resto) lineas = resto.split(',').map(s=>s.trim());
+  }
+  if (!lineas.length) { await send(`Manda así:\nactualizar almacen 2\nArrocera Estelectric 522\n\nO para los 3 a la vez:\nactualizar almacen todos\nArrocera Estelectric 522`); return; }
+  let actualizados = [];
+  for (let linea of lineas) {
+    let partes = linea.trim().split(' ');
+    let cant = parseInt(partes[partes.length-1]);
+    if (isNaN(cant)) continue;
+    let nombreProd = partes.slice(0,-1).join(' ');
+    let clave = buscarProducto(nombreProd) || nombreProd.toUpperCase();
+    if (!CATALOGO[clave]) CATALOGO[clave] = { nombre: nombreProd, precio: 0, comision: 1200, desc: nombreProd };
+    for (let d of destinos) {
+      if (!ALMACENES[d]) ALMACENES[d] = {};
+      ALMACENES[d][clave] = cant;
+    }
+    if (todos) actualizados.push(`✅ ${CATALOGO[clave].nombre} = ${cant} (Almacen 1, 2 y 3)`);
+    else actualizados.push(`✅ ${CATALOGO[clave].nombre} = ${cant} (Almacen ${numAlmacen})`);
+  }
+  await send(`✅ ALMACÉN ACTUALIZADO 👑\n${actualizados.join('\n')}`);
+  return;
+}
       let lineas = rawText.split('\n').slice(1).filter(l=>l.trim().length>2);
       if (lineas.length===0) {
         let resto = rawText.replace(/actualizar almacen/i,'').trim();
