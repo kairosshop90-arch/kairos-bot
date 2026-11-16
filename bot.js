@@ -343,7 +343,8 @@ async function start() {
       CONTADOR_VALE++;
       let totalUSD = ped.productos.reduce((s,p)=>s+p.precio*p.cant,0);
       let listaProd = ped.productos.map(p=>`• ${p.nombre} x${p.cant} - ${p.precio*p.cant} USD`).join('\n');
-      let comision = ped.productos.reduce((s,p)=>s+p.cant,0) * 500;
+      let comision = ped.productos.reduce((s,p)=>s + (p.cant * (CATALOGO[p.clave]?.comision || 500)),0);
+let detalleComision = ped.productos.map(p=>`• ${p.nombre} x${p.cant} = ${p.cant * (CATALOGO[p.clave]?.comision || 500)} CUP`).join('\n');
       let nc = ped.nombreComercial || 'Sin nombre';
       if (!comisiones[nc]) comisiones[nc] = { ventas: 0, total: 0 };
       comisiones[nc].ventas += 1; comisiones[nc].total += comision;
