@@ -23,9 +23,9 @@ let comisiones = {};
 const ADMIN_NUMERO = "5356947882@s.whatsapp.net";
 
 let ALMACENES = {
-  "1": { "J10": 10, "F6": 10, "BEE F6": 10, "F39": 10, "F22": 10, "PEDESTAL": 10, "NEVERA": 5, "FRIO": 5, "EXHIBIDORA": 3, "TV": 5, "COLCHON": 5 },
-  "2": { "J10": 10, "F6": 10, "BEE F6": 10, "F39": 10, "F22": 10, "PEDESTAL": 10, "NEVERA": 5, "FRIO": 5, "EXHIBIDORA": 3, "TV": 5, "COLCHON": 5 },
-  "3": { "J10": 10, "F6": 10, "BEE F6": 10, "F39": 10, "F22": 10, "PEDESTAL": 10, "NEVERA": 5, "FRIO": 5, "EXHIBIDORA": 3, "TV": 5, "COLCHON": 5 }
+  "1": { "J10": 10, "F6": 10, "BEE F6": 10, "F39": 10, "F22": 10, "PEDESTAL": 10, "NEVERA": 5, "FRIO": 5, "EXHIBIDORA": 3, "TV": 5, "COLCHON": 5, "LAVADORA": 5 },
+  "2": { "J10": 10, "F6": 10, "BEE F6": 10, "F39": 10, "F22": 10, "PEDESTAL": 10, "NEVERA": 5, "FRIO": 5, "EXHIBIDORA": 3, "TV": 5, "COLCHON": 5, "LAVADORA": 5 },
+  "3": { "J10": 10, "F6": 10, "BEE F6": 10, "F39": 10, "F22": 10, "PEDESTAL": 10, "NEVERA": 5, "FRIO": 5, "EXHIBIDORA": 3, "TV": 5, "COLCHON": 5, "LAVADORA": 5 }
 };
 
 const DIRECCIONES_ALMACENES = {
@@ -35,20 +35,21 @@ const DIRECCIONES_ALMACENES = {
 };
 
 let CATALOGO = {
-  "J10": { nombre: "J10 Recargable", precio: 40, desc: "Solar + Bluetooth + Luz + Radio FM\nBatería 20.000 mAh, hasta 12h" },
-  "F39": { nombre: "F39 Solar", precio: 42, desc: "Solar + Bluetooth + Luz\nBatería larga duración" },
-  "F22": { nombre: "F22 SACO", precio: 70, desc: "SACO Grande - Potente, Bluetooth + Luz + Solar" },
-  "F6": { nombre: "F6 SACO", precio: 35, desc: "SACO - Bluetooth + Luz" },
-  "BEE F6": { nombre: "Bee F6", precio: 32, desc: "Bee F6 - 32 USD / Mayor: 30 USD" },
-  "PEDESTAL": { nombre: 'Pedestal 18"', precio: 23, desc: 'Ventilador Pedestal 18" - 3 velocidades' },
-  "NEVERA": { nombre: "Nevera", precio: 0, desc: "Preguntar modelo - 11 pies / 16 pies disponibles" },
-  "FRIO": { nombre: "Frío", precio: 0, desc: "Frío 15 pies en adelante" },
-  "EXHIBIDORA": { nombre: "Exhibidora", precio: 0, desc: "Exhibidora con cristales - MUCHO CUIDADO" },
-  "TV": { nombre: "TV", precio: 0, desc: "TV - Preguntar pulgadas" },
-  "COLCHON": { nombre: "Colchón", precio: 0, desc: "Colchón - Preguntar medida" }
+  "J10": { nombre: "J10 Recargable", precio: 40, comision: 1200, desc: "Solar + Bluetooth + Luz + Radio FM\nBatería 20.000 mAh, hasta 12h" },
+  "F39": { nombre: "F39 Solar", precio: 42, comision: 1200, desc: "Solar + Bluetooth + Luz\nBatería larga duración" },
+  "F22": { nombre: "F22 SACO", precio: 70, comision: 1200, desc: "SACO Grande - Potente, Bluetooth + Luz + Solar" },
+  "F6": { nombre: "F6 SACO", precio: 35, comision: 1200, desc: "SACO - Bluetooth + Luz" },
+  "BEE F6": { nombre: "Bee F6", precio: 32, comision: 1200, desc: "Bee F6 - 32 USD / Mayor: 30 USD" },
+  "PEDESTAL": { nombre: 'Pedestal 18"', precio: 23, comision: 1200, desc: 'Ventilador Pedestal 18" - 3 velocidades' },
+  "NEVERA": { nombre: "Nevera", precio: 0, comision: 2500, desc: "Preguntar modelo - 11 pies / 16 pies disponibles" },
+  "FRIO": { nombre: "Frío", precio: 0, comision: 2500, desc: "Frío 15 pies en adelante" },
+  "EXHIBIDORA": { nombre: "Exhibidora", precio: 0, comision: 2500, desc: "Exhibidora con cristales - MUCHO CUIDADO" },
+  "TV": { nombre: "TV", precio: 0, comision: 2500, desc: "TV - Preguntar pulgadas" },
+  "LAVADORA": { nombre: "Lavadora", precio: 0, comision: 2500, desc: "Lavadora - Preguntar modelo" },
+  "COLCHON": { nombre: "Colchón", precio: 0, comision: 2500, desc: "Colchón - Preguntar medida" }
 };
 
-let EQUIPOS_GRANDES = ["NEVERA", "FRIO", "EXHIBIDORA", "TV", "COLCHON"];
+let EQUIPOS_GRANDES = ["NEVERA", "FRIO", "EXHIBIDORA", "TV", "LAVADORA", "COLCHON"];
 
 async function verificarTasaUSD() {
   if (MODO === "manual") return;
@@ -148,6 +149,7 @@ function buscarProducto(texto) {
   if (t.includes("NEVERA")) return "NEVERA";
   if (t.includes("EXHIBIDORA")) return "EXHIBIDORA";
   if (t.includes("FRIO") || t.includes("FRÍO")) return "FRIO";
+  if (t.includes("LAVADORA")) return "LAVADORA";
   if (t.includes("TV")) return "TV";
   if (t.includes("COLCHON") || t.includes("COLCHÓN")) return "COLCHON";
   for (let k in CATALOGO) { if (t === k || t.includes(k)) return k; }
@@ -210,7 +212,7 @@ async function start() {
       let precio = parseInt(partes[1]);
       let nombreDesc = partes.slice(2).join(' ');
       if (!clave || isNaN(precio) || !nombreDesc) { await send(`Falta algo. Ej: agregar producto LAMPARA 15 Lámpara Solar`); return; }
-      CATALOGO[clave] = { nombre: nombreDesc, precio: precio, desc: nombreDesc };
+      CATALOGO[clave] = { nombre: nombreDesc, precio: precio, comision: 1200, desc: nombreDesc };
       for (let a of ["1","2","3"]) { if (ALMACENES[a][clave] === undefined) ALMACENES[a][clave] = 0; }
       await send(`✅ Producto creado 👑\n${clave} - ${nombreDesc} - ${precio} USD\nAhora hazle entrada: entrada 1 ${clave} 10`);
       return;
@@ -262,7 +264,7 @@ async function start() {
     if (ped.paso === 'nombre') {
       ped.nombreComercial = rawText;
       ped.paso = 'catalogo'; pedidos[from] = ped;
-      await send(`Gracias ${rawText} 👑\n\n📋 CATÁLOGO:\n✅ Pedestal 18" - *23 USD*\n✅ J10 - *40 USD*\n✅ F6 - *35 USD*\n✅ Bee F6 - *32 USD*\n✅ F39 - *42 USD*\n✅ F22 - *70 USD*\n✅ Nevera / Frío / Exhibidora / TV / Colchón\n\n¿Cuál quieres? Escribe el modelo, ej: *J10*`);
+      await send(`Gracias ${rawText} 👑\n\n📋 CATÁLOGO:\n✅ Pedestal 18" - *23 USD*\n✅ J10 - *40 USD*\n✅ F6 - *35 USD*\n✅ Bee F6 - *32 USD*\n✅ F39 - *42 USD*\n✅ F22 - *70 USD*\n✅ Nevera / Frío / Exhibidora / TV / Lavadora / Colchón\n\n¿Cuál quieres? Escribe el modelo, ej: *J10*`);
       return;
     }
 
@@ -280,7 +282,7 @@ async function start() {
 
     if (ped.paso === 'elegido' && text === '1') {
       ped.paso = 'catalogo'; pedidos[from] = ped;
-      await send(`📋 CATÁLOGO:\n✅ Pedestal 18" - 23 USD\n✅ J10 - 40 USD\n✅ F6 - 35 USD\n✅ F39 - 42 USD\n✅ F22 - 70 USD\n✅ Nevera / Frío / Exhibidora / TV / Colchón\n\nEscribe el modelo:`); return;
+      await send(`📋 CATÁLOGO:\n✅ Pedestal 18" - 23 USD\n✅ J10 - 40 USD\n✅ F6 - 35 USD\n✅ F39 - 42 USD\n✅ F22 - 70 USD\n✅ Nevera / Frío / Exhibidora / TV / Lavadora / Colchón\n\nEscribe el modelo:`); return;
     }
     if (ped.paso === 'elegido' && (text === '2' || text.includes('ya escogi') || text.includes('quiero pedir') || text.includes('no'))) {
       ped.paso = 'tipo_entrega'; pedidos[from] = ped;
@@ -343,8 +345,9 @@ async function start() {
       CONTADOR_VALE++;
       let totalUSD = ped.productos.reduce((s,p)=>s+p.precio*p.cant,0);
       let listaProd = ped.productos.map(p=>`• ${p.nombre} x${p.cant} - ${p.precio*p.cant} USD`).join('\n');
-      let comision = ped.productos.reduce((s,p)=>s + (p.cant * (CATALOGO[p.clave]?.comision || 500)),0);
-let detalleComision = ped.productos.map(p=>`• ${p.nombre} x${p.cant} = ${p.cant * (CATALOGO[p.clave]?.comision || 500)} CUP`).join('\n');
+      // COMISION POR CADA EQUIPO SUMADA
+      let comision = ped.productos.reduce((s,p)=>s + (p.cant * (CATALOGO[p.clave]?.comision || 1200)),0);
+      let detalleComision = ped.productos.map(p=>`• ${p.nombre} x${p.cant} = ${p.cant * (CATALOGO[p.clave]?.comision || 1200)} CUP`).join('\n');
       let nc = ped.nombreComercial || 'Sin nombre';
       if (!comisiones[nc]) comisiones[nc] = { ventas: 0, total: 0 };
       comisiones[nc].ventas += 1; comisiones[nc].total += comision;
@@ -361,7 +364,8 @@ let detalleComision = ped.productos.map(p=>`• ${p.nombre} x${p.cant} = ${p.can
       });
       await send(`✅ Pedido confirmado 👑\n\n🧾 Vale: *${numeroVale}*\n👤 Comercial: ${nc}\n👤 Cliente: ${ped.nombreCliente}\n\n📦 Productos:\n${listaProd}\nTotal: ${totalUSD} USD\n💰 Pago: ${ped.pago}\n🚚 Mensajería: ${ped.mensajeria} CUP\n📍 Dirección: ${ped.direccion}\n📝 Nota: ${ped.nota}\n\nGracias por comprar en KAIROS SHOP 👑`);
       try {
-await sock.sendMessage(ADMIN_NUMERO, { text: `🔔 *NUEVO VALE ${numeroVale}*\n\n👤 Comercial: ${nc}\n👤 Cliente: ${ped.nombreCliente}\n📱 Chat: ${from}\n📍 Dirección: ${ped.direccion}\n\n📦 Productos:\n${listaProd}\n💰 Pago: ${ped.pago}\n🚚 Mensajería: ${ped.mensajeria} CUP\n📝 NOTA: ${ped.nota}\n💰 Comisión ${nc}:\n${detalleComision}\nTOTAL COMISIÓN: ${comision} CUP\n\n¡Atender! 👑` });      } catch(e) { console.log('Error aviso admin', e); }
+        await sock.sendMessage(ADMIN_NUMERO, { text: `🔔 *NUEVO VALE ${numeroVale}*\n\n👤 Comercial: ${nc}\n👤 Cliente: ${ped.nombreCliente}\n📱 Chat: ${from}\n📍 Dirección: ${ped.direccion}\n\n📦 Productos:\n${listaProd}\n💰 Pago: ${ped.pago}\n🚚 Mensajería: ${ped.mensajeria} CUP\n📝 NOTA: ${ped.nota}\n💰 Comisión ${nc}:\n${detalleComision}\nTOTAL COMISIÓN: ${comision} CUP\n\n¡Atender! 👑` });
+      } catch(e) { console.log('Error aviso admin', e); }
       delete pedidos[from];
       return;
     }
