@@ -23,9 +23,9 @@ let comisiones = {};
 let VALES_GUARDADOS = {};
 const ADMIN_NUMERO = "5356947882@s.whatsapp.net";
 
-// 👇👇 PON AQUÍ LOS ID DE TUS GRUPOS 👇👇
-const GRUPO_MENSAJERIA = "PON_AQUI_ID_GRUPO_MENSAJERIA@g.us";
-const GRUPO_RECOGIDA = "PON_AQUI_ID_GRUPO_RECOGIDA@g.us";
+// GRUPOS KAIROS - YA PUESTOS
+const GRUPO_MENSAJERIA = "120363419483851412@g.us";
+const GRUPO_RECOGIDA = "120363417801594416@g.us";
 
 let ALMACENES = {
   "1": { "J10": 10, "F6": 10, "BEE F6": 10, "F39": 10, "F22": 10, "PEDESTAL": 10, "NEVERA": 5, "FRIO": 5, "EXHIBIDORA": 3, "TV": 5, "COLCHON": 5, "LAVADORA": 5 },
@@ -186,7 +186,6 @@ async function start() {
     const esGrupo = from.endsWith('@g.us');
     const send = async (t) => { await sock.sendMessage(from, { text: t }); };
 
-    // PARA SACAR EL ID DEL GRUPO - Escribe "id grupo" dentro del grupo
     if (esGrupo && text === 'id grupo') {
       await send(`ID de este grupo:\n${from}`);
       return;
@@ -196,7 +195,6 @@ async function start() {
     const esAdmin = (from === ADMIN_NUMERO);
 
     // ===== ADMIN CONFIRMA VALE =====
-    // Tu escribes: vale 001 confirmado  o  vale KAIROS-001 confirmado
     if (esAdmin && text.includes('vale') && text.includes('confirmado')) {
       let match = text.match(/(\d{1,4})/);
       if (!match) { await send(`No encontré el número. Ej: vale 001 confirmado`); return; }
@@ -205,12 +203,9 @@ async function start() {
       let v = VALES_GUARDADOS[claveVale];
       if (!v) { await send(`No encontré el vale ${claveVale} 😅\n¿Ya se creó? Revisa el número.`); return; }
       if (v.enviado) { await send(`Ese vale ${claveVale} ya se envió al grupo.`); return; }
-
       let esRecogida = v.direccion.includes('RECOGIDA');
-      // Quitar número del cliente para mensajería: quita todos los dígitos
       let clienteSinNumero = v.nombreCliente.replace(/[0-9+\- ]/g, '').replace(/,,/g, ',').trim();
       if (!clienteSinNumero) clienteSinNumero = v.nombreCliente.split(',')[0];
-
       if (esRecogida) {
         try {
           await sock.sendMessage(GRUPO_RECOGIDA, { text: `🏬 *RECOGIDA EN LOCAL - ${claveVale} CONFIRMADO* ✅\n\n🧾 Vale: ${claveVale}\n👤 Comercial: ${v.nombreComercial}\n👤 Cliente: ${v.nombreCliente}\n\n📦 Productos:\n${v.listaProd}\n💰 Pago: ${v.pago}\n📍 Recogida: ${v.direccion}\n📝 Nota: ${v.nota}\n\n¡Preparar para entregar! 👑` });
@@ -227,7 +222,6 @@ async function start() {
       return;
     }
 
-    // ===== SOLO ADMIN =====
     if (esAdmin && text.startsWith('actualizar stock')) {
       let partes = rawText.split(' ');
       let almacenNum = partes[2];
@@ -394,7 +388,6 @@ async function start() {
       if (!comisiones[nc]) comisiones[nc] = { ventas: 0, total: 0 };
       comisiones[nc].ventas += 1; comisiones[nc].total += comision;
 
-      // GUARDAR VALE PARA CUANDO TU LO CONFIRMES
       VALES_GUARDADOS[numeroVale] = {
         nombreComercial: nc,
         nombreCliente: ped.nombreCliente,
