@@ -195,8 +195,54 @@ async function start() {
     const esAdmin = (from === ADMIN_NUMERO);
 
     // ===== ADMIN CONFIRMA VALE =====
-    if (esAdmin && text.includes('vale') && text.includes('confirmado')) {
+    // ===== ADMIN CONFIRMA VALE =====
+    if (text.includes('vale') && text.includes('confirmado')) {
+      // Si no eres admin, te dice quién eres para arreglar el número
+      if (!esAdmin) { await send(`No eres admin. Tu número es: ${from}\nDime ese número para ponerlo como admin.`); return; }
       let match = text.match(/(\d{1,4})/);
+      let claveVale = "";
+      // Si escribiste "vale confirmado" sin número, usa el último vale
+      if (!match) {
+        let keys = Object.keys(VALES_GUARDADOS);
+        if (keys.length === 0) { await send(`No hay ningún vale guardado. Haz un pedido primero.`); return; }
+        claveVale = keys[keys.length - 1];
+      } else {
+        let num = match[1].padStart(3, '0');
+        claveVale = `KAIROS-${num}`;
+      }
+      let v = VALES_GUARDADOS[claveVale];
+      if (!v) { 
+        let keys = Object.keys(VALES_GUARDADOS);
+        await send(`No encontré el vale ${claveVale} 😅\nVales que tengo guardados: ${keys.join(', ') || 'ninguno'}\nEscribe: ver vales para verlos`); 
+        return; 
+      }
+      if (v.enviado) { await send(`Ese vale ${claveVale} ya se envió al grupo.`); return; }
+      let esRecogida = v.direccion.includes('RECOGIDA');
+      let clienteSinNumero = v.nombreCliente.replace(/[0-9+\- ]/g, '').replace(/,,/g, ',').trim();
+      if (!clienteSinNumero) clienteSinNumero = v.nombreCliente.split(',')[0];
+      if (esRecogida) {
+        try {
+          await sock.sendMessage(GRUPO_RECOGIDA, { text: `🏬 *RECOGIDA EN LOCAL - ${claveVale} CONFIRMADO* ✅\n\n🧾 Vale: ${claveVale}\n👤 Comercial: ${v.nombreComercial}\n👤 Cliente: ${v.nombreCliente}\n\n📦 Productos:\n${v.listaProd}\n💰 Pago: ${v.pago}\n📍 Recogida: ${v.direccion}\n📝 Nota: ${v.nota}\n\n¡Preparar para entregar! 👑` });
+          v.enviado = true;
+          await send(`✅ Vale ${claveVale} enviado al grupo de RECOGIDA 🏬`);
+        } catch(e) { await send(`Error enviando al grupo de recogida: ${e.message}`); }
+      } else {
+        try {
+          await sock.sendMessage(GRUPO_MENSAJERIA, { text: `🚚 *MENSAJERÍA - ${claveVale} CONFIRMADO* ✅\n\n🧾 Vale: ${claveVale}\n👤 Comercial: ${v.nombreComercial}\n👤 Cliente: ${clienteSinNumero}\n\n📦 Productos:\n${v.listaProd}\n💰 Pago: ${v.pago}\n🚚 Mensajería: ${v.mensajeria} CUP\n📍 Dirección: ${v.direccion}\n📝 Nota: ${v.nota}\n\n¡A repartir! 👑` });
+          v.enviado = true;
+          await send(`✅ Vale ${claveVale} enviado al grupo de MENSAJERÍA 🚚 (sin número del cliente)`);
+        } catch(e) { await send(`Error enviando al grupo de mensajería: ${e.message}`); }
+      }
+      return;
+    }
+
+    if (esAdmin && text === 'ver vales') {
+      let keys = Object.keys(VALES_GUARDADOS);
+      if (keys.length === 0) { await send(`No hay vales guardados`); return; }
+      let txt = `🧾 *VALES GUARDADOS*\n\n`;
+      for (let k of keys) { let vv = VALES_GUARDADOS[k]; txt += `${k} - ${vv.nombreCliente} - ${vv.enviado ? 'ENVIADO ✅' : 'PENDIENTE ⏳'}\n`; }
+      await send(txt); return;
+    }      let match = text.match(/(\d{1,4})/);
       if (!match) { await send(`No encontré el número. Ej: vale 001 confirmado`); return; }
       let num = match[1].padStart(3, '0');
       let claveVale = `KAIROS-${num}`;
