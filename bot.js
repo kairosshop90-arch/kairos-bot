@@ -1,115 +1,107 @@
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
-const fs = require('fs');
-const pino = require('pino');
 const express = require('express');
-
+const qrcode = require('qrcode');
 const app = express();
-const PORT = process.env.PORT || 3000;
 let ultimoQR = '';
+let sock;
 
-app.get('/', (req, res) => res.send('Kairos bot activo'));
-app.get('/qr', (req, res) => {
-  if(!ultimoQR) return res.send('Ya estas conectado, no hay QR.');
-  res.send(`<h2>Escanea este QR</h2><img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(ultimoQR)}">`);
-});
-app.listen(PORT, () => console.log('Puerto ' + PORT));
+const CATALOGO = { J10:{precio:10,nombre:'J10'}, J20:{precio:20,nombre:'J20'}, A1:{precio:15,nombre:'A1'} };
+let TASA = { valor: 400 };
+let PEDIDOS = [];
+let CHAT = {}; // aqui guardamos en que paso va cada persona
 
-function cargar(n, d){ try{ if(fs.existsSync(n+'.json')) return JSON.parse(fs.readFileSync(n+'.json','utf8')); }catch(e){} return d; }
-function guardar(n, d){ fs.writeFileSync(n+'.json', JSON.stringify(d, null, 2)); }
-
-let CATALOGO = cargar('catalogo', {
-  'J20': { nombre: 'J20', precio: 45 },
-  'J10': { nombre: 'J10', precio: 30 },
-  'A1': { nombre: 'A1', precio: 25 }
-});
-let TASA = cargar('tasa', { valor: 915, actualizado: '' });
-let PEDIDOS = cargar('pedidos', []);
-let PEDIDOS_PENDIENTES = {};
-let ADMIN_JID = '5356947882@s.whatsapp.net';
-
-async function actualizarTasa(){
-  try{
-    let res = await fetch('https://api.eltoque.com/v1/trmi', { headers: { 'User-Agent': 'Mozilla/5.0' } });
-    let data = await res.json();
-    let lista = data.trmi || data || [];
-    let usd = Array.isArray(lista) ? lista.find(x => (x.moneda||'').toString().toUpperCase().includes('USD')) : null;
-    let v = usd ? parseFloat(usd.tasa || usd.valor) : null;
-    if(v && v > 100 && v < 2000){ TASA.valor = Math.round(v); TASA.actualizado = new Date().toLocaleString('es-CU'); guardar('tasa', TASA); }
-  }catch(e){}
-}
+async function send(to, text){ await sock.sendMessage(to, {text}); }
 
 async function main(){
   const { state, saveCreds } = await useMultiFileAuthState('auth');
-  const sock = makeWASocket({ auth: state, logger: pino({ level: 'silent' }) });
+  sock = makeWASocket({ auth: state, printQRInTerminal: true });
   sock.ev.on('creds.update', saveCreds);
-  sock.ev.on('connection.update', (u) => {
-    if(u.qr) ultimoQR = u.qr;
-    if(u.connection === 'open'){ ultimoQR = ''; console.log('CONECTADO'); actualizarTasa(); setInterval(actualizarTasa, 30*60*1000); }
-    if(u.connection === 'close' && u.lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut) main();
+  sock.ev.on('connection.update', async (u)=>{
+    if(u.qr){ ultimoQR = await qrcode.toDataURL(u.qr); }
+    if(u.connection === 'open') ultimoQR = '';
   });
 
-  sock.ev.on('messages.upsert', async ({ messages }) => {
+  sock.ev.on('messages.upsert', async ({messages})=>{
     const m = messages[0];
     if(!m.message || m.key.fromMe) return;
     const from = m.key.remoteJid;
     const texto = m.message.conversation || m.message.extendedTextMessage?.text || '';
-    const text = texto.trim();
-    const lower = text.toLowerCase();
+    const lower = texto.trim().toLowerCase();
+    const enviar = (t)=> send(from, t);
 
-    async function send(msg){ await sock.sendMessage(from, { text: msg }); }
+    // CANCELAR
+    if(lower === 'cancelar'){ delete CHAT[from]; await enviar('Pedido cancelado. Escribe menu para empezar de nuevo.'); return; }
 
-    // ===== TASA =====
-    if(lower === 'tasa'){
-      await send(`Tasa Toque: ${TASA.valor} CUP\nTu cobro: ${TASA.valor + 10} CUP`);
+    // MENU
+    if(lower === 'menu' || lower === 'hola' || lower === 'ayuda'){
+      await enviar(`🤖 KAIROS - MENÚ\n\n📦 Productos: J10, J20, A1\n\n1️⃣ Escribe *pedir* para hacer un pedido\n2️⃣ Escribe *tasa* para ver la tasa\n3️⃣ Escribe *cancelar* para cancelar`);
+      return;
+    }
+    if(lower === 'tasa'){ await enviar(`💵 Tasa: ${TASA.valor} CUP\nTu cobro: ${TASA.valor + 10} CUP`); return; }
+
+    // EMPEZAR PEDIDO
+    if(lower === 'pedir' || lower === 'comprar' || lower === 'pedido'){
+      CHAT[from] = { paso: 'producto', datos: {} };
+      await enviar('Perfecto, vamos a hacer tu pedido paso a paso.\n\n¿Qué producto quieres?\n• J10\n• J20\n• A1\n\nEscribe solo el nombre, ej: J10');
       return;
     }
 
-    // ===== PEDIDO - ESTO ES LO QUE TU QUIERES =====
-    if(lower.startsWith('pedido ')){
-      let resto = text.slice(7).trim();
-      let partes = resto.split('-').map(s => s.trim());
-      let primera = partes[0] || '';
-      let clave = primera.split(' ')[0].toUpperCase();
-      let cant = parseInt(primera.split('x')[1]) || 1;
-      let cliente = partes[1] || 'Cliente';
-      let direccion = partes[2] || '';
-      let envio = partes[3] || 'mensajeria';
-
-      if(!CATALOGO[clave]){ await send(`Ese producto no existe. Tenemos: ${Object.keys(CATALOGO).join(', ')}`); return; }
-
-      let precioUSD = CATALOGO[clave].precio;
-      let precioMN = precioUSD * (TASA.valor + 10);
-
-      PEDIDOS_PENDIENTES[from] = { clave, cant, cliente, direccion, envio, precioUSD, precioMN };
-
-      await send(`🛒 PEDIDO RECIBIDO\n\n📦 Producto: ${clave} x${cant}\n👤 Cliente: ${cliente}\n📍 Dirección: ${direccion}\n🚚 Envío: ${envio}\n\n💰 ¿Cómo paga?\n1️⃣ USD: ${precioUSD * cant} USD\n2️⃣ MN: ${precioMN * cant} CUP (a ${TASA.valor + 10} = Toque ${TASA.valor} + 10)\n\nResponde:\npago USD  o  pago MN`);
-      return;
+    // SI ESTA EN MEDIO DE UN PEDIDO, VA PREGUNTANDO
+    if(CHAT[from]){
+      let p = CHAT[from];
+      if(p.paso === 'producto'){
+        let prod = texto.trim().toUpperCase();
+        if(!CATALOGO[prod]){ await enviar('Ese producto no existe. Escribe J10, J20 o A1'); return; }
+        p.datos.producto = prod;
+        p.paso = 'cantidad';
+        await enviar(`Bueno, ${prod}. ¿Cuántos quieres?\nEscribe un número, ej: 1`);
+        return;
+      }
+      if(p.paso === 'cantidad'){
+        p.datos.cantidad = texto.trim();
+        p.paso = 'nombre';
+        await enviar('¿Tu nombre?');
+        return;
+      }
+      if(p.paso === 'nombre'){
+        p.datos.nombre = texto.trim();
+        p.paso = 'telefono';
+        await enviar('¿Tu teléfono?');
+        return;
+      }
+      if(p.paso === 'telefono'){
+        p.datos.telefono = texto.trim();
+        p.paso = 'direccion';
+        await enviar('¿Tu dirección? Ej: San Miguel');
+        return;
+      }
+      if(p.paso === 'direccion'){
+        p.datos.direccion = texto.trim();
+        p.paso = 'envio';
+        await enviar('¿Cómo lo quieres?\nEscribe: mensajeria o recoger');
+        return;
+      }
+      if(p.paso === 'envio'){
+        p.datos.envio = texto.trim();
+        p.paso = 'pago';
+        let totalUSD = CATALOGO[p.datos.producto].precio * parseInt(p.datos.cantidad);
+        let totalCUP = totalUSD * (TASA.valor + 10);
+        await enviar(`Resumen:\n${p.datos.producto} x${p.datos.cantidad} - ${p.datos.nombre} - ${p.datos.direccion} - ${p.datos.envio}\nTotal: ${totalUSD} USD / ${totalCUP} CUP\n\n¿Cómo vas a pagar?\nEscribe: pago USD o pago MN`);
+        return;
+      }
+      if(p.paso === 'pago'){
+        if(lower.includes('usd')) p.datos.pago = 'USD';
+        else if(lower.includes('mn')) p.datos.pago = 'MN';
+        else { await enviar('Escribe: pago USD o pago MN'); return; }
+        PEDIDOS.push(p.datos);
+        await enviar(`✅ PEDIDO CONFIRMADO\n${p.datos.producto} x${p.datos.cantidad} - ${p.datos.nombre}\nDir: ${p.datos.direccion} - ${p.datos.envio}\nPago: ${p.datos.pago}\n\nGracias por comprar en Kairos 🙏`);
+        delete CHAT[from];
+        return;
+      }
     }
-
-    // ===== PAGO =====
-    if(lower === 'pago usd' || lower === 'pago mn'){
-      let p = PEDIDOS_PENDIENTES[from];
-      if(!p){ await send(`No tienes pedido pendiente. Primero escribe:\npedido J20 x1 - Maria 56947882 - San Miguel - mensajeria`); return; }
-      let forma = lower === 'pago usd' ? `${p.precioUSD * p.cant} USD` : `${p.precioMN * p.cant} CUP`;
-      PEDIDOS.push({ ...p, pago: forma, fecha: new Date().toLocaleString('es-CU') });
-      guardar('pedidos', PEDIDOS);
-      delete PEDIDOS_PENDIENTES[from];
-      await send(`✅ PEDIDO CONFIRMADO\n\n${p.clave} x${p.cant} - ${p.cliente}\nDir: ${p.direccion} - ${p.envio}\nPago: ${forma}\n\nGracias por comprar en Kairos 🙏\n\n¿Tienes duda? Escribe: duda + tu pregunta`);
-      return;
-    }
-
-    // ===== J10 SOLO - TAMBIEN COMO ANTES =====
-    if(CATALOGO[lower.toUpperCase()]){
-      let p = CATALOGO[lower.toUpperCase()];
-      await send(`📦 ${p.nombre}\nPrecio: ${p.precio} USD / ${p.precio * (TASA.valor + 10)} CUP\n\nPara pedirlo escribe:\npedido ${p.nombre} x1 - Tu nombre telefono - Tu direccion - mensajeria`);
-      return;
-    }
-
-   if(lower === 'menu' || lower === 'ayuda' || lower === '1' || lower === 'productos'){
-  let lista = Object.keys(CATALOGO).map(k => `• ${k} - ${CATALOGO[k].precio} USD / ${CATALOGO[k].precio * (TASA.valor + 10)} CUP`).join('\n');
-  await send(`🤖 KAIROS - MENÚ\n\n📦 PRODUCTOS:\n${lista}\n\n📝 PARA PEDIR ESCRIBE:\npedido J10 x1 - Maria 56947882 - San Miguel - mensajeria\n\n💰 LUEGO RESPONDE:\npago USD  o  pago MN\n\n💵 VER TASA: escribe tasa`);
-  return;
-}
   });
 }
 main();
+app.get('/', (req,res)=> res.send('Kairos bot activo'));
+app.get('/qr', (req,res)=>{ if(!ultimoQR) return res.send('Ya estas conectado'); res.send(`<img src="${ultimoQR}" style="width:300px">`); });
+app.listen(3000, ()=> console.log('listo'));
