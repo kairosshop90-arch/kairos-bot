@@ -301,6 +301,34 @@ if (text.includes('mi numero')) {
       if (CATALOGO[clave]) {
         delete CATALOGO[clave];
         for (let a of ["1","2","3"]) delete ALMACENES[a][clave];
+        if (esAdmin && text.startsWith('agotar')) {
+  let partes = rawText.split(' ');
+  // Formas: agotar J10  -> agota en todos
+  //         agotar 1 J10 -> agota solo en almacen 1
+  let almacenNum = null;
+  let clave = '';
+  if (['1','2','3'].includes(partes[1])) { almacenNum = partes[1]; clave = partes[2].toUpperCase(); }
+  else { clave = partes[1].toUpperCase(); }
+
+  if (!CATALOGO[clave]) { await send('No encontré: ' + clave); return; }
+
+  if (almacenNum) { ALMACENES[almacenNum][clave] = 0; }
+  else { for (let a of ["1","2","3"]) ALMACENES[a][clave] = 0; }
+  await send(`✅ AGOTADO 👑\n${clave} - ${CATALOGO[clave].nombre} = 0`);
+  return;
+}
+
+if (esAdmin && text.startsWith('limpiar almacen')) {
+  let destino = rawText.replace(/limpiar almacen /i, '').trim().toLowerCase();
+  if (destino === 'todos') {
+    for (let clave of Object.keys(CATALOGO)) { for (let a of ["1","2","3"]) ALMACENES[a][clave] = 0; }
+    await send('✅ TODOS LOS ALMACENES LIMPIOS 👑\nTodo en 0');
+  } else if (['1','2','3'].includes(destino)) {
+    for (let clave of Object.keys(CATALOGO)) ALMACENES[destino][clave] = 0;
+    await send(`✅ ALMACEN ${destino} LIMPIO 👑\nTodo en 0`);
+  } else { await send('Manda: limpiar almacen 1 o limpiar almacen todos'); }
+  return;
+}
         EQUIPOS_GRANDES = EQUIPOS_GRANDES.filter(e => e !== clave);
         await send(`🗑️ Producto borrado 👑\n${clave} ya no sale en catálogo ni en almacén`);
       } else await send(`No encontré ese producto: ${clave}`);
