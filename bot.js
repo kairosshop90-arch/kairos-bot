@@ -58,8 +58,7 @@ async function verificarTasaUSD() {
     if (usd) { TASA_SITIO = usd.price || usd.valor; TASA_MN = TASA_SITIO + 10; console.log(`✅ Auto: ${TASA_SITIO} +10 = ${TASA_MN}`); }
   } catch(e) { console.log("Sin internet, mantengo:", TASA_MN); }
 }
-setInterval(verificarTasaUSD, 7200000);
-verificarTasaUSD();
+setInterval(verificarTasaUSD, 1800000);
 
 // ===== MENSAJERIA =====
 const MENSAJERIA = [
