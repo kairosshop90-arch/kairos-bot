@@ -21,12 +21,27 @@ let CONTADOR_VALE = 1;
 let pedidos = {};
 let comisiones = {};
 let VALES_GUARDADOS = {};
-// SOLO TU - Nadie más puede confirmar vales
 let ADMINS = ["5356947882@s.whatsapp.net"];
 const CLAVE_ADMIN = "kairos123";
 const ADMIN_NUMERO = "5356947882@s.whatsapp.net";
 const GRUPO_MENSAJERIA = "120363419483851412@g.us";
 const GRUPO_RECOGIDA = "120363417801594416@g.us";
+
+// ========== NUEVO: GRUPO DUDAS + EQUIPOS DINAMICOS ==========
+const GRUPO_DUDAS = "120363414152883390@g.us";
+const LINK_PERMITIDO = "https://chat.whatsapp.com/L27GO7ZI2mGIu6EHhfWhOC";
+const GROSERIAS = ["pinga", "coño", "mierda", "cabron", "singao", "comemierda", "hijo de puta"];
+let advertencias = {};
+let EQUIPOS_DINAMICOS = {}; // aqui se guardan con !agregar
+
+function buscarEquipoDinamico(texto) {
+  let t = texto.toLowerCase();
+  for (let nombre in EQUIPOS_DINAMICOS) {
+    if (t.includes(nombre.toLowerCase())) return { nombre, datos: EQUIPOS_DINAMICOS[nombre] };
+  }
+  return null;
+}
+// ========== FIN NUEVO ==========
 
 let ALMACENES = {
   "1": { "J10": 10, "F6": 10, "BEE F6": 10, "F39": 10, "F22": 10, "PEDESTAL": 10, "NEVERA": 5, "FRIO": 5, "EXHIBIDORA": 3, "TV": 5, "COLCHON": 5, "LAVADORA": 5 },
@@ -187,24 +202,113 @@ async function start() {
     const esGrupo = from.endsWith('@g.us');
     const send = async (t) => { await sock.sendMessage(from, { text: t }); };
 
-    if (esGrupo && text === 'id grupo') {
-      await send(`ID de este grupo:\n${from}`);
+    // ===== GRUPOS =====
+    if (esGrupo) {
+      if (text === 'id grupo') { await send(`ID de este grupo:\n${from}`); return; }
+
+      // --- SOLO GRUPO DUDAS: MODERAR + RESPONDER EQUIPOS ---
+      if (from === GRUPO_DUDAS) {
+        const participante = m.key.participant;
+        if (participante) {
+          // Mute?
+          if (advertencias[participante]?.muteHasta > Date.now()) {
+            try { await sock.sendMessage(from, { delete: m.key }); } catch(e){}
+            return;
+          }
+          const tieneLink = /https?:\/\/|www\.|wa\.me|t\.me|\.com|\.net|\.cu|chat\.whatsapp\.com/i.test(text);
+          const esLinkPermitido = text.includes(LINK_PERMITIDO.toLowerCase());
+          const tieneGroseria = GROSERIAS.some(p => text.includes(p));
+          if ((tieneLink && !esLinkPermitido) || tieneGroseria) {
+            try { await sock.sendMessage(from, { delete: m.key }); } catch(e){}
+            if (!advertencias[participante]) advertencias[participante] = { count: 0, muteHasta: 0 };
+            advertencias[participante].count++;
+            let count = advertencias[participante].count;
+            let motivo = tieneGroseria ? "grosería" : "link no permitido";
+            if (count === 1) await sock.sendMessage(from, { text: `⚠️ @${participante.split('@')[0]} 1ra advertencia. No se permite ${motivo}.`, mentions: [participante] });
+            else if (count === 2) {
+              advertencias[participante].muteHasta = Date.now() + 30*60*1000;
+              await sock.sendMessage(from, { text: `⛔ @${participante.split('@')[0]} 2da advertencia. Silenciado 30 min por ${motivo}.`, mentions: [participante] });
+            } else if (count >= 3) {
+              await sock.sendMessage(from, { text: `🚫 @${participante.split('@')[0]} 3ra advertencia. Expulsado por ${motivo}.`, mentions: [participante] });
+              try { await sock.groupParticipantsUpdate(from, [participante], "remove"); } catch(e){}
+              delete advertencias[participante];
+            }
+            return;
+          }
+          // Si preguntan por un equipo guardado -> responder con datos oficiales
+          const enc = buscarEquipoDinamico(text);
+          if (enc && (text.includes('caracter') || text.includes('tiene') || text.includes('precio') || text.includes('cuanto') || text.includes('cuánto') || text.includes('?') || text.includes('que'))) {
+            await sock.sendMessage(from, { text: `📱 *${enc.nombre}*\nCaracterísticas oficiales:\n${enc.datos}\n\n¿Quieres pedirlo? Escríbeme al privado.` });
+            return;
+          }
+          // Si un gestor habla del equipo y pone datos distintos -> rectificar
+          if (enc && (text.includes('gb') || text.includes('bateria') || text.includes('batería') || text.includes('usd') || text.includes('$') || text.includes('precio'))) {
+            // Si el mensaje no contiene ninguna palabra clave de los datos oficiales, corregir
+            let datosLower = enc.datos.toLowerCase();
+            let coincide = datosLower.split('|').some(p => {
+              let palabra = p.trim().split(' ')[0];
+              return palabra.length > 1 && text.includes(palabra);
+            });
+            if (!coincide) {
+              await sock.sendMessage(from, { text: `⚠️ *Corrección automática:*\nLo correcto de *${enc.nombre}* es:\n${enc.datos}\n\nEsa es la información oficial guardada.` });
+              return;
+            }
+          }
+        }
+      }
       return;
     }
-    if (esGrupo) return;
 
-    // TU LLAVE PARA HACERTE ADMIN - Solo tú sabes la clave
-if (text.includes('soy admin') && text.includes('kairos123')) {    
-  if (!ADMINS.includes(from)) ADMINS.push(from);
+    // ===== PRIVADO =====
+    if (text.includes('soy admin') && text.includes('kairos123')) {
+      if (!ADMINS.includes(from)) ADMINS.push(from);
       await send(`✅ Listo Louis 👑\nYa eres admin con este número:\n${from}\n\nAhora solo tú puedes confirmar vales.`);
       return;
     }
-if (text.includes('mi numero')) {    
-  await send(`Tu número es:\n${from}\n\n¿Eres admin? ${ADMINS.includes(from) ? 'SÍ ✅' : 'NO ❌'}\nSi dice NO, escribe: soy admin kairos123`);
+    if (text.includes('mi numero')) {
+      await send(`Tu número es:\n${from}\n\n¿Eres admin? ${ADMINS.includes(from) ? 'SÍ ✅' : 'NO ❌'}\nSi dice NO, escribe: soy admin kairos123`);
       return;
     }
 
     const esAdmin = ADMINS.includes(from);
+
+    // ===== NUEVO: AGREGAR EQUIPOS - SOLO ADMIN, EN PRIVADO =====
+    // Ej: !agregar iPhone 13 | 128GB | Bateria 89% | Azul | 450 USD
+    if (esAdmin && text.startsWith('!agregar ')) {
+      const contenido = rawText.slice(9).trim();
+      const partes = contenido.split('|').map(p => p.trim());
+      if (partes.length < 2) { await send(`❌ Usa así:\n!agregar Nombre | Caracteristica 1 | Caracteristica 2 | Precio\n\nEjemplo:\n!agregar iPhone 13 | 128GB | Bateria 89% | Azul | 450 USD`); return; }
+      const nombre = partes[0];
+      const caracteristicas = partes.slice(1).join(' | ');
+      EQUIPOS_DINAMICOS[nombre] = caracteristicas;
+      await send(`✅ Guardado:\n📱 *${nombre}*\n${caracteristicas}\n\nYa puedo responder dudas de este equipo en el grupo de dudas.`);
+      return;
+    }
+    if (esAdmin && (text === '!lista' || text === '!equipos')) {
+      if (Object.keys(EQUIPOS_DINAMICOS).length === 0) { await send(`📭 Aún no hay equipos. Agrega uno con:\n!agregar iPhone 13 | 128GB | 450 USD`); }
+      else {
+        let lista = `📱 *EQUIPOS GUARDADOS:*\n\n`;
+        for (let n in EQUIPOS_DINAMICOS) lista += `• *${n}* - ${EQUIPOS_DINAMICOS[n]}\n`;
+        await send(lista);
+      }
+      return;
+    }
+    if (esAdmin && text.startsWith('!borrar ')) {
+      const nombre = rawText.slice(8).trim();
+      // buscar sin importar mayusculas
+      let keyReal = Object.keys(EQUIPOS_DINAMICOS).find(k => k.toLowerCase() === nombre.toLowerCase());
+      if (keyReal) { delete EQUIPOS_DINAMICOS[keyReal]; await send(`🗑️ Borrado: ${keyReal}`); }
+      else await send(`❌ No encontré ${nombre}. Usa !lista para ver.`);
+      return;
+    }
+    // Si un cliente pregunta por equipo en privado, tambien responder
+    if (!esAdmin) {
+      const encPriv = buscarEquipoDinamico(text);
+      if (encPriv && (text.includes('caracter') || text.includes('tiene') || text.includes('precio') || text.includes('cuanto') || text.includes('?'))) {
+        await send(`📱 *${encPriv.nombre}*\nCaracterísticas oficiales:\n${encPriv.datos}\n\n¿Quieres pedirlo? Escribe *hola* para empezar tu pedido 👑`);
+        return;
+      }
+    }
 
     // ===== SOLO ADMIN PUEDE CONFIRMAR VALE =====
     if (text.includes('vale') && text.includes('confirmado')) {
@@ -220,10 +324,10 @@ if (text.includes('mi numero')) {
         claveVale = `KAIROS-${num}`;
       }
       let v = VALES_GUARDADOS[claveVale];
-      if (!v) { 
+      if (!v) {
         let keys = Object.keys(VALES_GUARDADOS);
-        await send(`No encontré el vale ${claveVale} 😅\nVales que tengo: ${keys.join(', ') || 'ninguno'}`); 
-        return; 
+        await send(`No encontré el vale ${claveVale} 😅\nVales que tengo: ${keys.join(', ') || 'ninguno'}`);
+        return;
       }
       if (v.enviado) { await send(`Ese vale ${claveVale} ya se envió al grupo.`); return; }
       let esRecogida = v.direccion.includes('RECOGIDA');
