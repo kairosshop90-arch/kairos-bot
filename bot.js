@@ -180,6 +180,52 @@ async function start() {
     const esAdmin = (from === ADMIN_NUMERO);
 
     // ===== SOLO ADMIN: ALMACEN =====
+        // ===== AGREGAR PRODUCTO NUEVO =====
+    // Ej: agregar producto LAMPARA 15 Lámpara Solar
+    if (esAdmin && text.startsWith('agregar producto')) {
+      let resto = rawText.replace('agregar producto ', '').trim();
+      let partes = resto.split(' ');
+      let clave = partes[0].toUpperCase();
+      let precio = parseInt(partes[1]);
+      let nombreDesc = partes.slice(2).join(' ');
+      if (!clave || isNaN(precio) || !nombreDesc) {
+        await send(`Falta algo. Ej: agregar producto LAMPARA 15 Lámpara Solar`); return;
+      }
+      CATALOGO[clave] = { nombre: nombreDesc, precio: precio, desc: nombreDesc };
+      // Lo crea en los 3 almacenes en 0
+      for (let a of ["1","2","3"]) {
+        if (ALMACENES[a][clave] === undefined) ALMACENES[a][clave] = 0;
+      }
+      await send(`✅ Producto creado 👑\n${clave} - ${nombreDesc} - ${precio} USD\nYa está en catálogo y en almacén 1,2,3 en 0.\nAhora hazle entrada: entrada 1 ${clave} 10`);
+      return;
+    }
+
+    // ===== ENTRADA - SUMA STOCK =====
+    // Ej: entrada 1 J10 5  -> le suma 5 al almacén 1
+    if (esAdmin && text.startsWith('entrada')) {
+      let partes = rawText.split(' ');
+      let almacenNum = partes[1];
+      let clave = partes[2].toUpperCase();
+      let cant = parseInt(partes[3]);
+      if (ALMACENES[almacenNum] && ALMACENES[almacenNum][clave] !== undefined && !isNaN(cant)) {
+        ALMACENES[almacenNum][clave] += cant;
+        await send(`✅ Entrada hecha 👑\nAlmacén ${almacenNum} - ${clave} +${cant}\nAhora tienes: ${ALMACENES[almacenNum][clave]}`);
+      } else await send(`No encontré. Ej: entrada 1 J10 5`);
+      return;
+    }
+
+    // ===== BORRAR PRODUCTO =====
+    // Ej: borrar producto F6
+    if (esAdmin && text.startsWith('borrar producto')) {
+      let clave = rawText.replace('borrar producto ', '').trim().toUpperCase();
+      if (CATALOGO[clave]) {
+        delete CATALOGO[clave];
+        for (let a of ["1","2","3"]) delete ALMACENES[a][clave];
+        EQUIPOS_GRANDES = EQUIPOS_GRANDES.filter(e => e !== clave);
+        await send(`🗑️ Producto borrado 👑\n${clave} ya no sale en catálogo ni en almacén`);
+      } else await send(`No encontré ese producto: ${clave}`);
+      return;
+    }
     if (esAdmin && text.startsWith('actualizar stock')) {
       // Ej: actualizar stock J10 5
       let partes = rawText.split(' ');
