@@ -213,12 +213,8 @@ async function start() {
 
     let ped = pedidos[from] || { paso: 'inicio', productos: [], nombreComercial: '' };
 
-    // INICIO - PIDE NOMBRE DEL COMERCIAL
-    if (text.includes('hola') || text.includes('menu') || text.includes('catalogo') || text === '1') {
-      pedidos[from] = { paso: 'nombre', productos: [] };
-      await send(`Hola, bendecido día 🙏\nBienvenido a KAIROS SHOP 👑\n\nAntes de empezar, ¿cómo te llamas? (Nombre del comercial)`);
-      return;
-    }
+       // INICIO - PIDE NOMBRE DEL COMERCIAL - SOLO SI NO ESTA EN UN PEDIDO
+    if ((text.includes('hola') || text.includes('menu') || text.includes('catalogo')) && (!ped.paso || ped.paso === 'inicio')) {
 
     if (ped.paso === 'nombre') {
       ped.nombreComercial = rawText;
