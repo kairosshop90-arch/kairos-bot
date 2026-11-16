@@ -184,6 +184,30 @@ async function start() {
     const rawText = (m.message.conversation || m.message.extendedTextMessage?.text || '');
     const text = rawText.toLowerCase().trim();
     const from = m.key.remoteJid;
+    // SOLO POR PRIVADO - ACTUALIZAR ALMACEN
+if(rawText.toLowerCase().startsWith('actualizar almacen') && (esAdmin||esSegundo)){
+  let lineas = rawText.split('\n').slice(1).filter(l=>l.trim().length>2);
+  if(lineas.length===0){
+    let resto = rawText.replace(/actualizar almacen/i,'').trim();
+    if(resto) lineas = resto.split(',').map(s=>s.trim());
+  }
+  if(!lineas.length){ await send(`Manda así:\nactualizar almacen\nArrocera Estelectric 522`); return; }
+  let actualizados = [];
+  for(let linea of lineas){
+    let partes = linea.trim().split(' ');
+    let cant = parseInt(partes[partes.length-1]);
+    if(isNaN(cant)) continue;
+    let nombreProd = partes.slice(0,-1).join(' ');
+    let clave = buscarProducto(nombreProd) || nombreProd.toUpperCase();
+    if(!ALMACEN[clave]) ALMACEN[clave]={A1:0,A2:0,A3:0};
+    if(!CATALOGO[clave]){ CATALOGO[clave]={nombre:nombreProd,precio:0,desc:"Producto con marca"}; guardarCatalogo(); }
+    ALMACEN[clave].A1 = cant;
+    actualizados.push(`✅ ${CATALOGO[clave].nombre} - ${cant}`);
+  }
+  guardar('almacen',ALMACEN);
+  await send(`✅ ACTUALIZADO EN PRIVADO 👑\n${actualizados.join('\n')}`);
+  return;
+}
     const esGrupo = from.endsWith('@g.us');
     const send = async (t) => { await sock.sendMessage(from, { text: t }); };
 
