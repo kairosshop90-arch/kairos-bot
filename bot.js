@@ -184,30 +184,6 @@ async function start() {
     const rawText = (m.message.conversation || m.message.extendedTextMessage?.text || '');
     const text = rawText.toLowerCase().trim();
     const from = m.key.remoteJid;
-    // SOLO POR PRIVADO - ACTUALIZAR ALMACEN
-if(rawText.toLowerCase().startsWith('actualizar almacen') && (esAdmin||esSegundo)){
-  let lineas = rawText.split('\n').slice(1).filter(l=>l.trim().length>2);
-  if(lineas.length===0){
-    let resto = rawText.replace(/actualizar almacen/i,'').trim();
-    if(resto) lineas = resto.split(',').map(s=>s.trim());
-  }
-  if(!lineas.length){ await send(`Manda así:\nactualizar almacen\nArrocera Estelectric 522`); return; }
-  let actualizados = [];
-  for(let linea of lineas){
-    let partes = linea.trim().split(' ');
-    let cant = parseInt(partes[partes.length-1]);
-    if(isNaN(cant)) continue;
-    let nombreProd = partes.slice(0,-1).join(' ');
-    let clave = buscarProducto(nombreProd) || nombreProd.toUpperCase();
-    if(!ALMACEN[clave]) ALMACEN[clave]={A1:0,A2:0,A3:0};
-    if(!CATALOGO[clave]){ CATALOGO[clave]={nombre:nombreProd,precio:0,desc:"Producto con marca"}; guardarCatalogo(); }
-    ALMACEN[clave].A1 = cant;
-    actualizados.push(`✅ ${CATALOGO[clave].nombre}`);
-  }
-  guardar('almacen',ALMACEN);
-  await send(`✅ ACTUALIZADO EN PRIVADO 👑\n${actualizados.join('\n')}`);
-  return;
-}
     const esGrupo = from.endsWith('@g.us');
     const send = async (t) => { await sock.sendMessage(from, { text: t }); };
 
@@ -218,17 +194,42 @@ if(rawText.toLowerCase().startsWith('actualizar almacen') && (esAdmin||esSegundo
     if (esGrupo) return;
 
     // TU LLAVE PARA HACERTE ADMIN - Solo tú sabes la clave
-if (text.includes('soy admin') && text.includes('kairos123')) {    
-  if (!ADMINS.includes(from)) ADMINS.push(from);
+    if (text.includes('soy admin') && text.includes('kairos123')) {
+      if (!ADMINS.includes(from)) ADMINS.push(from);
       await send(`✅ Listo Louis 👑\nYa eres admin con este número:\n${from}\n\nAhora solo tú puedes confirmar vales.`);
       return;
     }
-if (text.includes('mi numero')) {    
-  await send(`Tu número es:\n${from}\n\n¿Eres admin? ${ADMINS.includes(from) ? 'SÍ ✅' : 'NO ❌'}\nSi dice NO, escribe: soy admin kairos123`);
+    if (text.includes('mi numero')) {
+      await send(`Tu número es:\n${from}\n\n¿Eres admin? ${ADMINS.includes(from) ? 'SÍ ✅' : 'NO ❌'}\nSi dice NO, escribe: soy admin kairos123`);
       return;
     }
 
     const esAdmin = ADMINS.includes(from);
+
+    // ACTUALIZAR ALMACEN - ARREGLADO
+    if (text.startsWith('actualizar almacen')) {
+      if (!esAdmin) { await send(`⛔ Solo admin`); return; }
+      let lineas = rawText.split('\n').slice(1).filter(l=>l.trim().length>2);
+      if (lineas.length===0) {
+        let resto = rawText.replace(/actualizar almacen/i,'').trim();
+        if (resto) lineas = resto.split(',').map(s=>s.trim());
+      }
+      if (!lineas.length) { await send(`Manda así:\nactualizar almacen\nArrocera Estelectric 522`); return; }
+      let actualizados = [];
+      for (let linea of lineas) {
+        let partes = linea.trim().split(' ');
+        let cant = parseInt(partes[partes.length-1]);
+        if (isNaN(cant)) continue;
+        let nombreProd = partes.slice(0,-1).join(' ');
+        let clave = buscarProducto(nombreProd) || nombreProd.toUpperCase();
+        if (!CATALOGO[clave]) CATALOGO[clave] = { nombre: nombreProd, precio: 0, comision: 1200, desc: nombreProd };
+        if (ALMACENES["1"][clave] === undefined) ALMACENES["1"][clave] = 0;
+        ALMACENES["1"][clave] = cant;
+        actualizados.push(`✅ ${CATALOGO[clave].nombre} = ${cant} (Almacen 1)`);
+      }
+      await send(`✅ ALMACÉN ACTUALIZADO 👑\n${actualizados.join('\n')}`);
+      return;
+    }
 
     // ===== SOLO ADMIN PUEDE CONFIRMAR VALE =====
     if (text.includes('vale') && text.includes('confirmado')) {
@@ -244,10 +245,10 @@ if (text.includes('mi numero')) {
         claveVale = `KAIROS-${num}`;
       }
       let v = VALES_GUARDADOS[claveVale];
-      if (!v) { 
+      if (!v) {
         let keys = Object.keys(VALES_GUARDADOS);
-        await send(`No encontré el vale ${claveVale} 😅\nVales que tengo: ${keys.join(', ') || 'ninguno'}`); 
-        return; 
+        await send(`No encontré el vale ${claveVale} 😅\nVales que tengo: ${keys.join(', ') || 'ninguno'}`);
+        return;
       }
       if (v.enviado) { await send(`Ese vale ${claveVale} ya se envió al grupo.`); return; }
       let esRecogida = v.direccion.includes('RECOGIDA');
