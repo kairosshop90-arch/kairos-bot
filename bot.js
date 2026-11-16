@@ -283,8 +283,18 @@ async function start() {
       if (!comisiones[nc]) comisiones[nc] = { ventas: 0, total: 0 };
       comisiones[nc].ventas += 1; comisiones[nc].total += comision;
       // Bajar stock
-      ped.productos.forEach(p=>{ if(ALMACEN[p.clave]!==undefined) ALMACEN[p.clave] = Math.max(0, ALMACEN[p.clave]-p.cant); });
-
+         // Bajar stock - primero del 1, si no hay, del 2, si no, del 3
+      ped.productos.forEach(p=>{
+        let falta = p.cant;
+        for (let a of ["1","2","3"]) {
+          if (falta <= 0) break;
+          if (ALMACENES[a][p.clave] !== undefined) {
+            let quita = Math.min(ALMACENES[a][p.clave], falta);
+            ALMACENES[a][p.clave] -= quita;
+            falta -= quita;
+          }
+        }
+      });
       await send(`✅ Pedido confirmado 👑\n\n🧾 Vale: *${numeroVale}*\n👤 Comercial: ${nc}\n👤 Cliente: ${ped.nombreCliente}\n\n📦 Productos:\n${listaProd}\nTotal: ${totalUSD} USD\n💰 Pago: ${ped.pago}\n🚚 Mensajería: ${ped.mensajeria} CUP\n📍 Dirección: ${ped.direccion}\n📝 Nota: ${ped.nota}\n\nGracias por comprar en KAIROS SHOP 👑`);
 
       try {
