@@ -15,23 +15,20 @@ app.get('/qr', async (req, res) => {
 });
 app.listen(process.env.PORT || 3000);
 
-// ===== CONFIG KAIROS 👑 =====
 let TASA_SITIO = 915;
-let TASA_MN = 925; // Sitio + 10
+let TASA_MN = 925;
 let MODO = "auto";
 let CONTADOR_VALE = 1;
 let pedidos = {};
-let comisiones = {}; // { "nombre": {ventas:0, total:0} }
-
+let comisiones = {};
 const ADMIN_NUMERO = "5356947882@s.whatsapp.net";
 
-// ===== ALMACEN - SOLO TU LO ACTUALIZAS =====
-let ALMACEN = {
-  "J10": 10, "F6": 10, "BEE F6": 10, "F39": 10, "F22": 10,
-  "PEDESTAL": 10, "NEVERA": 5, "FRIO": 5, "EXHIBIDORA": 3, "TV": 5, "COLCHON": 5
+let ALMACENES = {
+  "1": { "J10": 10, "F6": 10, "BEE F6": 10, "F39": 10, "F22": 10, "PEDESTAL": 10, "NEVERA": 5, "FRIO": 5, "EXHIBIDORA": 3, "TV": 5, "COLCHON": 5 },
+  "2": { "J10": 10, "F6": 10, "BEE F6": 10, "F39": 10, "F22": 10, "PEDESTAL": 10, "NEVERA": 5, "FRIO": 5, "EXHIBIDORA": 3, "TV": 5, "COLCHON": 5 },
+  "3": { "J10": 10, "F6": 10, "BEE F6": 10, "F39": 10, "F22": 10, "PEDESTAL": 10, "NEVERA": 5, "FRIO": 5, "EXHIBIDORA": 3, "TV": 5, "COLCHON": 5 }
 };
 
-// ===== CATALOGO = MISMA INFO DEL CANAL - SOLO TEXTO, SIN FOTO =====
 let CATALOGO = {
   "J10": { nombre: "J10 Recargable", precio: 40, desc: "Solar + Bluetooth + Luz + Radio FM\nBatería 20.000 mAh, hasta 12h" },
   "F39": { nombre: "F39 Solar", precio: 42, desc: "Solar + Bluetooth + Luz\nBatería larga duración" },
@@ -48,7 +45,6 @@ let CATALOGO = {
 
 let EQUIPOS_GRANDES = ["NEVERA", "FRIO", "EXHIBIDORA", "TV", "COLCHON"];
 
-// ===== TASA ELTOQUE +10 CADA 2H =====
 async function verificarTasaUSD() {
   if (MODO === "manual") return;
   try {
@@ -59,8 +55,8 @@ async function verificarTasaUSD() {
   } catch(e) { console.log("Sin internet, mantengo:", TASA_MN); }
 }
 setInterval(verificarTasaUSD, 1800000);
+verificarTasaUSD();
 
-// ===== MENSAJERIA =====
 const MENSAJERIA = [
   { zona: "san miguel", precio: 1000 },
   { zona: "san miguel", k: ["entrincado","intrincado"], precio: 1500 },
@@ -131,7 +127,6 @@ function calcularMensajeria(direccion, productos, textoCompleto) {
   if (txt.includes("nevera 11") || txt.includes("nevera 16") || txt.includes("11 pies") || txt.includes("16 pies")) { final += 500; detalle += ` +500 Nevera 11/16 pies`; }
   if (productos.some(p=>p.clave==="EXHIBIDORA")) { final += 1000; detalle += ` +1000 Exhibidora (cristales, mucho cuidado)`; }
   if (txt.includes("frio 15") || txt.includes("15 pies") || txt.includes("16 pies") || txt.includes("17 pies") || txt.includes("18 pies") || txt.includes("20 pies")) {
-    // Solo si es frio
     if (productos.some(p=>p.clave==="FRIO")) { final += 800; detalle += ` +800 Frío 15+ pies`; }
   }
   return { precio: final, detalle };
@@ -150,6 +145,8 @@ function buscarProducto(texto) {
   if (t.includes("FRIO") || t.includes("FRÍO")) return "FRIO";
   if (t.includes("TV")) return "TV";
   if (t.includes("COLCHON") || t.includes("COLCHÓN")) return "COLCHON";
+  // Productos agregados por comando - busca por clave exacta
+  for (let k in CATALOGO) { if (t === k || t.includes(k)) return k; }
   return null;
 }
 
@@ -179,29 +176,41 @@ async function start() {
     const send = async (t) => { await sock.sendMessage(from, { text: t }); };
     const esAdmin = (from === ADMIN_NUMERO);
 
-    // ===== SOLO ADMIN: ALMACEN =====
-        // ===== AGREGAR PRODUCTO NUEVO =====
-    // Ej: agregar producto LAMPARA 15 Lámpara Solar
+    // ===== SOLO ADMIN =====
+    if (esAdmin && text.startsWith('actualizar stock')) {
+      let partes = rawText.split(' ');
+      let almacenNum = partes[2];
+      let cant = parseInt(partes[partes.length-1]);
+      let clave = partes.slice(3, -1).join(' ').toUpperCase();
+      if (ALMACENES[almacenNum] && ALMACENES[almacenNum][clave] !== undefined && !isNaN(cant)) {
+        ALMACENES[almacenNum][clave] = cant;
+        await send(`✅ Almacén ${almacenNum} actualizado 👑\n${clave} = ${cant} disponibles`);
+      } else await send(`No encontré. Ej: actualizar stock 1 J10 5`);
+      return;
+    }
+    if (esAdmin && text.startsWith('ver almacen')) {
+      let num = text.replace('ver almacen','').trim();
+      if (ALMACENES[num]) {
+        let txt = `📦 *ALMACÉN ${num} KAIROS*\n\n`;
+        for (let k in ALMACENES[num]) txt += `${k}: ${ALMACENES[num][k]}\n`;
+        await send(txt); return;
+      }
+      let txt = `📦 *TODOS LOS ALMACENES*\n\n`;
+      for (let a in ALMACENES) { txt += `--- ALMACÉN ${a} ---\n`; for (let k in ALMACENES[a]) txt += `${k}: ${ALMACENES[a][k]}\n`; txt += `\n`; }
+      await send(txt); return;
+    }
     if (esAdmin && text.startsWith('agregar producto')) {
-      let resto = rawText.replace('agregar producto ', '').trim();
+      let resto = rawText.replace(/agregar producto /i, '').trim();
       let partes = resto.split(' ');
       let clave = partes[0].toUpperCase();
       let precio = parseInt(partes[1]);
       let nombreDesc = partes.slice(2).join(' ');
-      if (!clave || isNaN(precio) || !nombreDesc) {
-        await send(`Falta algo. Ej: agregar producto LAMPARA 15 Lámpara Solar`); return;
-      }
+      if (!clave || isNaN(precio) || !nombreDesc) { await send(`Falta algo. Ej: agregar producto LAMPARA 15 Lámpara Solar`); return; }
       CATALOGO[clave] = { nombre: nombreDesc, precio: precio, desc: nombreDesc };
-      // Lo crea en los 3 almacenes en 0
-      for (let a of ["1","2","3"]) {
-        if (ALMACENES[a][clave] === undefined) ALMACENES[a][clave] = 0;
-      }
-      await send(`✅ Producto creado 👑\n${clave} - ${nombreDesc} - ${precio} USD\nYa está en catálogo y en almacén 1,2,3 en 0.\nAhora hazle entrada: entrada 1 ${clave} 10`);
+      for (let a of ["1","2","3"]) { if (ALMACENES[a][clave] === undefined) ALMACENES[a][clave] = 0; }
+      await send(`✅ Producto creado 👑\n${clave} - ${nombreDesc} - ${precio} USD\nAhora hazle entrada: entrada 1 ${clave} 10`);
       return;
     }
-
-    // ===== ENTRADA - SUMA STOCK =====
-    // Ej: entrada 1 J10 5  -> le suma 5 al almacén 1
     if (esAdmin && text.startsWith('entrada')) {
       let partes = rawText.split(' ');
       let almacenNum = partes[1];
@@ -213,11 +222,8 @@ async function start() {
       } else await send(`No encontré. Ej: entrada 1 J10 5`);
       return;
     }
-
-    // ===== BORRAR PRODUCTO =====
-    // Ej: borrar producto F6
     if (esAdmin && text.startsWith('borrar producto')) {
-      let clave = rawText.replace('borrar producto ', '').trim().toUpperCase();
+      let clave = rawText.replace(/borrar producto /i, '').trim().toUpperCase();
       if (CATALOGO[clave]) {
         delete CATALOGO[clave];
         for (let a of ["1","2","3"]) delete ALMACENES[a][clave];
@@ -225,22 +231,6 @@ async function start() {
         await send(`🗑️ Producto borrado 👑\n${clave} ya no sale en catálogo ni en almacén`);
       } else await send(`No encontré ese producto: ${clave}`);
       return;
-    }
-    if (esAdmin && text.startsWith('actualizar stock')) {
-      // Ej: actualizar stock J10 5
-      let partes = rawText.split(' ');
-      let cant = parseInt(partes[partes.length-1]);
-      let clave = partes.slice(2, -1).join(' ').toUpperCase();
-      if (ALMACEN[clave] !== undefined && !isNaN(cant)) {
-        ALMACEN[clave] = cant;
-        await send(`✅ Almacén actualizado 👑\n${clave} = ${cant} disponibles`);
-      } else await send(`No encontré ese producto. Ej: actualizar stock J10 5`);
-      return;
-    }
-    if (esAdmin && text === 'ver almacen') {
-      let txt = `📦 *ALMACÉN KAIROS*\n\n`;
-      for (let k in ALMACEN) txt += `${k}: ${ALMACEN[k]}\n`;
-      await send(txt); return;
     }
     if (esAdmin && text === 'comisiones') {
       let txt = `💰 *COMISIONES*\n\n`;
@@ -258,8 +248,12 @@ async function start() {
 
     let ped = pedidos[from] || { paso: 'inicio', productos: [], nombreComercial: '' };
 
-       // INICIO - PIDE NOMBRE DEL COMERCIAL - SOLO SI NO ESTA EN UN PEDIDO
+    // ===== FIX DEL 1: SI YA ESTAS EN PEDIDO, NO VUELVAS A BIENVENIDA =====
     if ((text.includes('hola') || text.includes('menu') || text.includes('catalogo')) && (!ped.paso || ped.paso === 'inicio')) {
+      pedidos[from] = { paso: 'nombre', productos: [] };
+      await send(`Hola, bendecido día 🙏\nBienvenido a KAIROS SHOP 👑\n\nAntes de empezar, ¿cómo te llamas? (Nombre del comercial)`);
+      return;
+    }
 
     if (ped.paso === 'nombre') {
       ped.nombreComercial = rawText;
@@ -268,7 +262,6 @@ async function start() {
       return;
     }
 
-    // ELEGIR PRODUCTO - GUARDA MULTIPLES
     let claveProd = buscarProducto(rawText);
     if (claveProd && (ped.paso === 'catalogo' || ped.paso === 'elegido' || ped.paso === 'otro')) {
       let info = CATALOGO[claveProd];
@@ -323,13 +316,10 @@ async function start() {
       CONTADOR_VALE++;
       let totalUSD = ped.productos.reduce((s,p)=>s+p.precio*p.cant,0);
       let listaProd = ped.productos.map(p=>`• ${p.nombre} x${p.cant} - ${p.precio*p.cant} USD`).join('\n');
-      // Comisión: 500 CUP por equipo (cámbialo aquí si quieres otro valor)
       let comision = ped.productos.reduce((s,p)=>s+p.cant,0) * 500;
       let nc = ped.nombreComercial || 'Sin nombre';
       if (!comisiones[nc]) comisiones[nc] = { ventas: 0, total: 0 };
       comisiones[nc].ventas += 1; comisiones[nc].total += comision;
-      // Bajar stock
-         // Bajar stock - primero del 1, si no hay, del 2, si no, del 3
       ped.productos.forEach(p=>{
         let falta = p.cant;
         for (let a of ["1","2","3"]) {
@@ -342,7 +332,6 @@ async function start() {
         }
       });
       await send(`✅ Pedido confirmado 👑\n\n🧾 Vale: *${numeroVale}*\n👤 Comercial: ${nc}\n👤 Cliente: ${ped.nombreCliente}\n\n📦 Productos:\n${listaProd}\nTotal: ${totalUSD} USD\n💰 Pago: ${ped.pago}\n🚚 Mensajería: ${ped.mensajeria} CUP\n📍 Dirección: ${ped.direccion}\n📝 Nota: ${ped.nota}\n\nGracias por comprar en KAIROS SHOP 👑`);
-
       try {
         await sock.sendMessage(ADMIN_NUMERO, { text: `🔔 *NUEVO VALE ${numeroVale}*\n\n👤 Comercial: ${nc}\n👤 Cliente: ${ped.nombreCliente}\n📱 Chat: ${from}\n📍 Dirección: ${ped.direccion}\n\n📦 Productos:\n${listaProd}\n💰 Pago: ${ped.pago}\n🚚 Mensajería: ${ped.mensajeria} CUP\n📝 NOTA: ${ped.nota}\n💰 Comisión ${nc}: ${comision} CUP\n\n¡Atender! 👑` });
       } catch(e) { console.log('Error aviso admin', e); }
