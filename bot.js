@@ -202,7 +202,7 @@ if(rawText.toLowerCase().startsWith('actualizar almacen') && (esAdmin||esSegundo
     if(!ALMACEN[clave]) ALMACEN[clave]={A1:0,A2:0,A3:0};
     if(!CATALOGO[clave]){ CATALOGO[clave]={nombre:nombreProd,precio:0,desc:"Producto con marca"}; guardarCatalogo(); }
     ALMACEN[clave].A1 = cant;
-    actualizados.push(`✅ ${CATALOGO[clave].nombre} - ${cant}`);
+    actualizados.push(`✅ ${CATALOGO[clave].nombre}`);
   }
   guardar('almacen',ALMACEN);
   await send(`✅ ACTUALIZADO EN PRIVADO 👑\n${actualizados.join('\n')}`);
