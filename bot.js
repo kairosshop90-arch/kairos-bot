@@ -194,8 +194,8 @@ async function start() {
     if (esGrupo) return;
 
     // TU LLAVE PARA HACERTE ADMIN - Solo tú sabes la clave
-    if (text === 'soy admin kairos123') {
-      if (!ADMINS.includes(from)) ADMINS.push(from);
+if (text.includes('soy admin') && text.includes('kairos123')) {    
+  if (!ADMINS.includes(from)) ADMINS.push(from);
       await send(`✅ Listo Louis 👑\nYa eres admin con este número:\n${from}\n\nAhora solo tú puedes confirmar vales.`);
       return;
     }
