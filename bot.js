@@ -46,7 +46,7 @@ let CATALOGO = {
   "COLCHON": { nombre: "Colchón", precio: 0, desc: "Colchón - Preguntar medida" }
 };
 
-const EQUIPOS_GRANDES = ["NEVERA", "FRIO", "EXHIBIDORA", "TV", "COLCHON"];
+let EQUIPOS_GRANDES = ["NEVERA", "FRIO", "EXHIBIDORA", "TV", "COLCHON"];
 
 // ===== TASA ELTOQUE +10 CADA 2H =====
 async function verificarTasaUSD() {
