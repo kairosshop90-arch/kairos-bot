@@ -144,21 +144,19 @@ function calcularMensajeria(direccion, productos, textoCompleto) {
   return { precio: final, detalle };
 }
 
-function buscarProducto(texto) {
-  let t = texto.toUpperCase();
-  if (t.includes("BEE")) return "BEE F6";
-  if (t.includes("J10")) return "J10";
-  if (t.includes("F39")) return "F39";
-  if (t.includes("F22")) return "F22";
-  if (t.includes("F6")) return "F6";
-  if (t.includes("PEDESTAL") || t === "18") return "PEDESTAL";
-  if (t.includes("NEVERA")) return "NEVERA";
-  if (t.includes("EXHIBIDORA")) return "EXHIBIDORA";
-  if (t.includes("FRIO") || t.includes("FRÍO")) return "FRIO";
-  if (t.includes("LAVADORA")) return "LAVADORA";
-  if (t.includes("TV")) return "TV";
-  if (t.includes("COLCHON") || t.includes("COLCHÓN")) return "COLCHON";
-  for (let k in CATALOGO) { if (t === k || t.includes(k)) return k; }
+function buscarProducto(nombre) {
+  let n = nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+
+  // 1. Primero busca EXACTO: "arrocera marwa" == "arrocera marwa"
+  for (let key of Object.keys(CATALOGO)) {
+    let k = key.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    if (k === n) return key;
+  }
+  // 2. Después busca que lo CONTENGA completo: "arrocera marwa" dentro de "arrocera marwa 6l"
+  for (let key of Object.keys(CATALOGO)) {
+    let k = key.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    if (k.includes(n) || n.includes(k)) return key;
+  }
   return null;
 }
 
