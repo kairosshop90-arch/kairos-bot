@@ -7,10 +7,14 @@ const app = express();
 let ultimoQR = ""; let estado = 'Iniciando...'; let CODIGO_EMPAREJAR = "";
 app.get('/', (req, res) => res.send('KAIROS BOT ACTIVO 👑'));
 app.get('/qr', async (req, res) => {
-  if (CODIGO_EMPAREJAR) return res.send(`<h1 style="font-size:50px">CODIGO: ${CODIGO_EMPAREJAR}</h1><p>Ve a WhatsApp > Ajustes > Dispositivos vinculados > Vincular con numero de telefono > Pon este codigo</p><p>${estado}</p>`);
-  if (!ultimoQR) return res.send(`<h1>${estado}</h1>`);
-  const img = await QRCode.toDataURL(ultimoQR);
-  res.send(`<h1>ESCANEA ESTE QR CON WHATSAPP</h1><img src="${img}">`);
+  let html = `<h1>KAIROS BOT 👑</h1><p>${estado}</p>`;
+  if (CODIGO_EMPAREJAR) html += `<h1 style="font-size:50px">CODIGO: ${CODIGO_EMPAREJAR}</h1><p>WhatsApp > Ajustes > Dispositivos vinculados > Vincular con numero de telefono > Pon este codigo</p><hr>`;
+  if (ultimoQR) {
+    const img = await QRCode.toDataURL(ultimoQR);
+    html += `<h2>O ESCANEA ESTE QR:</h2><img src="${img}">`;
+  }
+  if (!CODIGO_EMPAREJAR && !ultimoQR) html += `<p>Esperando QR o codigo...</p>`;
+  res.send(html);
 });
 app.listen(process.env.PORT || 3000);
 let TASA_SITIO = 915; let TASA_MN = 925; let MODO = "auto";
