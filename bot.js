@@ -105,10 +105,11 @@ async function main(){
       return;
     }
 
-    if(lower === 'menu' || lower === 'ayuda' || lower === 'menu'){
-      await send(`🤖 KAIROS\n\nPara pedir escribe:\npedido J20 x1 - Maria 56947882 - San Miguel - mensajeria\n\nProductos: ${Object.keys(CATALOGO).join(', ')}\n\nLuego responde: pago USD o pago MN\nVer tasa: tasa`);
-      return;
-    }
+   if(lower === 'menu' || lower === 'ayuda' || lower === '1' || lower === 'productos'){
+  let lista = Object.keys(CATALOGO).map(k => `• ${k} - ${CATALOGO[k].precio} USD / ${CATALOGO[k].precio * (TASA.valor + 10)} CUP`).join('\n');
+  await send(`🤖 KAIROS - MENÚ\n\n📦 PRODUCTOS:\n${lista}\n\n📝 PARA PEDIR ESCRIBE:\npedido J10 x1 - Maria 56947882 - San Miguel - mensajeria\n\n💰 LUEGO RESPONDE:\npago USD  o  pago MN\n\n💵 VER TASA: escribe tasa`);
+  return;
+}
   });
 }
 main();
