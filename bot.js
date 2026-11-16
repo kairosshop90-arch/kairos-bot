@@ -28,6 +28,12 @@ let ALMACENES = {
   "3": { "J10": 10, "F6": 10, "BEE F6": 10, "F39": 10, "F22": 10, "PEDESTAL": 10, "NEVERA": 5, "FRIO": 5, "EXHIBIDORA": 3, "TV": 5, "COLCHON": 5 }
 };
 
+const DIRECCIONES_ALMACENES = {
+  "1": "Calle 1ra No. 23308 / 4ta y 6ta. Altura del Mirador - Almacén 1 KAIROS",
+  "2": "Calle 2 / E y D No. 18532. Luyanó Moderno. San Miguel del Padrón - Almacén 2 KAIROS",
+  "3": "PON AQUÍ DIRECCIÓN ALMACÉN 3 - Almacén 3 KAIROS"
+};
+
 let CATALOGO = {
   "J10": { nombre: "J10 Recargable", precio: 40, desc: "Solar + Bluetooth + Luz + Radio FM\nBatería 20.000 mAh, hasta 12h" },
   "F39": { nombre: "F39 Solar", precio: 42, desc: "Solar + Bluetooth + Luz\nBatería larga duración" },
@@ -144,7 +150,6 @@ function buscarProducto(texto) {
   if (t.includes("FRIO") || t.includes("FRÍO")) return "FRIO";
   if (t.includes("TV")) return "TV";
   if (t.includes("COLCHON") || t.includes("COLCHÓN")) return "COLCHON";
-  // Productos agregados por comando - busca por clave exacta
   for (let k in CATALOGO) { if (t === k || t.includes(k)) return k; }
   return null;
 }
@@ -247,7 +252,7 @@ async function start() {
 
     let ped = pedidos[from] || { paso: 'inicio', productos: [], nombreComercial: '' };
 
-    // ===== FIX DEL 1: SI YA ESTAS EN PEDIDO, NO VUELVAS A BIENVENIDA =====
+    // FIX DEL 1: SI YA ESTAS EN PEDIDO, NO VUELVAS A BIENVENIDA
     if ((text.includes('hola') || text.includes('menu') || text.includes('catalogo')) && (!ped.paso || ped.paso === 'inicio')) {
       pedidos[from] = { paso: 'nombre', productos: [] };
       await send(`Hola, bendecido día 🙏\nBienvenido a KAIROS SHOP 👑\n\nAntes de empezar, ¿cómo te llamas? (Nombre del comercial)`);
@@ -278,8 +283,31 @@ async function start() {
       await send(`📋 CATÁLOGO:\n✅ Pedestal 18" - 23 USD\n✅ J10 - 40 USD\n✅ F6 - 35 USD\n✅ F39 - 42 USD\n✅ F22 - 70 USD\n✅ Nevera / Frío / Exhibidora / TV / Colchón\n\nEscribe el modelo:`); return;
     }
     if (ped.paso === 'elegido' && (text === '2' || text.includes('ya escogi') || text.includes('quiero pedir') || text.includes('no'))) {
+      ped.paso = 'tipo_entrega'; pedidos[from] = ped;
+      await send(`Perfecto ${ped.nombreComercial} 👑\n\n¿Cómo quieres recibirlo?\n\n1. 🚚 Mensajería a tu casa\n2. 🏬 Recogida en el local (SIN COSTO)`);
+      return;
+    }
+
+    // ===== TIPO ENTREGA =====
+    if (ped.paso === 'tipo_entrega' && text === '1') {
       ped.paso = 'direccion'; pedidos[from] = ped;
-      await send(`Perfecto ${ped.nombreComercial} 👑\n\nAhora pásame tu *dirección completa* para calcular la mensajería 📍\nEj: *San Miguel, Entrincado, Calle 5 #123 entre 1ra y 2da*`);
+      await send(`Perfecto 👑\n\nAhora pásame tu *dirección completa* para calcular la mensajería 📍\nEj: *San Miguel, Entrincado, Calle 5 #123 entre 1ra y 2da*`);
+      return;
+    }
+
+    if (ped.paso === 'tipo_entrega' && text === '2') {
+      let almacenEncontrado = "1";
+      let primerProd = ped.productos[0];
+      for (let a of ["1","2","3"]) {
+        if (ALMACENES[a][primerProd.clave] > 0) { almacenEncontrado = a; break; }
+      }
+      ped.almacenEntrega = almacenEncontrado;
+      ped.direccion = `RECOGIDA EN LOCAL - ALMACÉN ${almacenEncontrado} - ${DIRECCIONES_ALMACENES[almacenEncontrado]}`;
+      ped.mensajeria = 0;
+      ped.detalleMens = `Recogida en local - Sin costo`;
+      ped.paso = 'pago'; pedidos[from] = ped;
+      let totalUSD = ped.productos.reduce((s,p)=>s+p.precio*p.cant,0);
+      await send(`🏬 *RECOGIDA EN EL LOCAL* 👑\n\nTu equipo está en el *ALMACÉN ${almacenEncontrado}*\n📍 Dirección: ${DIRECCIONES_ALMACENES[almacenEncontrado]}\n🚚 Mensajería: *0 CUP - GRATIS*\n\nTotal equipos: ${totalUSD} USD\n\n¿Cómo desea pagar?\n\n1. 💵 USD - ${totalUSD} USD\n2. 💶 Euros - ${totalUSD} Euros\n3. 💰 MN - ${totalUSD * TASA_MN} MN (${totalUSD} USD x ${TASA_MN})\n\nEscriba 1, 2 o 3`);
       return;
     }
 
@@ -340,4 +368,3 @@ async function start() {
   });
 }
 start();
-   
