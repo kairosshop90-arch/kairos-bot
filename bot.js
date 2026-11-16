@@ -21,9 +21,10 @@ let CONTADOR_VALE = 1;
 let pedidos = {};
 let comisiones = {};
 let VALES_GUARDADOS = {};
+// SOLO TU - Nadie más puede confirmar vales
+let ADMINS = ["5356947882@s.whatsapp.net"];
+const CLAVE_ADMIN = "kairos123";
 const ADMIN_NUMERO = "5356947882@s.whatsapp.net";
-
-// GRUPOS KAIROS - YA PUESTOS
 const GRUPO_MENSAJERIA = "120363419483851412@g.us";
 const GRUPO_RECOGIDA = "120363417801594416@g.us";
 
@@ -192,11 +193,22 @@ async function start() {
     }
     if (esGrupo) return;
 
-    const esAdmin = (from === ADMIN_NUMERO);
+    // TU LLAVE PARA HACERTE ADMIN - Solo tú sabes la clave
+    if (text === 'soy admin kairos123') {
+      if (!ADMINS.includes(from)) ADMINS.push(from);
+      await send(`✅ Listo Louis 👑\nYa eres admin con este número:\n${from}\n\nAhora solo tú puedes confirmar vales.`);
+      return;
+    }
+    if (text === 'mi numero') {
+      await send(`Tu número es:\n${from}\n\n¿Eres admin? ${ADMINS.includes(from) ? 'SÍ ✅' : 'NO ❌'}\nSi dice NO, escribe: soy admin kairos123`);
+      return;
+    }
 
-    // ===== ADMIN CONFIRMA VALE =====
+    const esAdmin = ADMINS.includes(from);
+
+    // ===== SOLO ADMIN PUEDE CONFIRMAR VALE =====
     if (text.includes('vale') && text.includes('confirmado')) {
-      if (!esAdmin) { await send(`No eres admin. Tu número es: ${from}\nDime ese número para ponerlo como admin.`); return; }
+      if (!esAdmin) { await send(`⛔ Solo el admin puede confirmar vales.\nSi eres Louis escribe: soy admin kairos123`); return; }
       let match = text.match(/(\d{1,4})/);
       let claveVale = "";
       if (!match) {
@@ -210,7 +222,7 @@ async function start() {
       let v = VALES_GUARDADOS[claveVale];
       if (!v) { 
         let keys = Object.keys(VALES_GUARDADOS);
-        await send(`No encontré el vale ${claveVale} 😅\nVales que tengo guardados: ${keys.join(', ') || 'ninguno'}\nEscribe: ver vales para verlos`); 
+        await send(`No encontré el vale ${claveVale} 😅\nVales que tengo: ${keys.join(', ') || 'ninguno'}`); 
         return; 
       }
       if (v.enviado) { await send(`Ese vale ${claveVale} ya se envió al grupo.`); return; }
@@ -431,7 +443,7 @@ async function start() {
       });
       await send(`✅ Pedido confirmado 👑\n\n🧾 Vale: *${numeroVale}*\n👤 Comercial: ${nc}\n👤 Cliente: ${ped.nombreCliente}\n\n📦 Productos:\n${listaProd}\nTotal: ${totalUSD} USD\n💰 Pago: ${ped.pago}\n🚚 Mensajería: ${ped.mensajeria} CUP\n📍 Dirección: ${ped.direccion}\n📝 Nota: ${ped.nota}\n\nGracias por comprar en KAIROS SHOP 👑`);
       try {
-        await sock.sendMessage(ADMIN_NUMERO, { text: `🔔 *NUEVO VALE ${numeroVale}*\n\n👤 Comercial: ${nc}\n👤 Cliente: ${ped.nombreCliente}\n📱 Chat: ${from}\n📍 Dirección: ${ped.direccion}\n\n📦 Productos:\n${listaProd}\n💰 Pago: ${ped.pago}\n🚚 Mensajería: ${ped.mensajeria} CUP\n📝 NOTA: ${ped.nota}\n💰 Comisión ${nc}:\n${detalleComision}\nTOTAL COMISIÓN: ${comision} CUP\n\nPara enviar al grupo escribe:\n*vale ${numeroVale.replace('KAIROS-','')} confirmado* o solo *vale confirmado*\n\n¡Atender! 👑` });
+        await sock.sendMessage(ADMIN_NUMERO, { text: `🔔 *NUEVO VALE ${numeroVale}*\n\n👤 Comercial: ${nc}\n👤 Cliente: ${ped.nombreCliente}\n📱 Chat: ${from}\n📍 Dirección: ${ped.direccion}\n\n📦 Productos:\n${listaProd}\n💰 Pago: ${ped.pago}\n🚚 Mensajería: ${ped.mensajeria} CUP\n📝 NOTA: ${ped.nota}\n💰 Comisión ${nc}:\n${detalleComision}\nTOTAL COMISIÓN: ${comision} CUP\n\nPara enviar al grupo escribe:\n*vale confirmado*\n\n¡Atender! 👑` });
       } catch(e) { console.log('Error aviso admin', e); }
       delete pedidos[from];
       return;
