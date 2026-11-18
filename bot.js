@@ -254,9 +254,97 @@ if (text.includes('mi numero')) {
       await send(txt); return;
     }
 
-    // ACTUALIZAR SIMPLE
-    // ACTUALIZAR ALMACEN 1, 2 o 3 - Nombre 27 USD
-    if (esAdmin && /^actualizar(\s+almacen)?\s+[123]$/.test(text)) {
+// ===== PARTE DE ALMACENES - COMPLETA =====
+
+    // 1. ACTUALIZAR ALMACEN 1, 2, 3 - Te muestra listado con nombre y precio
+    if (esAdmin && text.startsWith('actualizar almacen')) {
+      let num = text.replace('actualizar almacen','').trim();
+      if (!['1','2','3'].includes(num)) { await send('Pon: actualizar almacen 1 / 2 / 3'); return; }
+      pedidos[from] = { paso: 'actualizando', almacen: num, productos: [] };
+      let txt = `📦 *ACTUALIZAR ALMACÉN ${num}* 👑\n\n`;
+      for (let k in CATALOGO) {
+        txt += `${CATALOGO[k].nombre} - ${CATALOGO[k].precio} USD - Stock: ${ALMACENES[num][k] ?? 0}\n`;
+      }
+      txt += `\nPara actualizar escribe:\n*Nombre cantidad*\nEj: J10 15`;
+      await send(txt); return;
+    }
+
+    // Después del listado, pones Ej: J10 15 y se actualiza
+    if (esAdmin && ped.paso === 'actualizando') {
+      let partes = rawText.trim().split(' ');
+      let clave = buscarProducto(partes[0]);
+      let cant = parseInt(partes[partes.length-1]);
+      if (!clave || isNaN(cant)) { await send('Pon: Nombre cantidad - Ej: J10 15'); return; }
+      ALMACENES[ped.almacen][clave] = cant;
+      let almacenGuardado = ped.almacen;
+      ped.paso = 'inicio';
+      await send(`✅ Almacén ${almacenGuardado} actualizado 👑\n${CATALOGO[clave].nombre} - ${CATALOGO[clave].precio} USD = ${cant} disponibles`);
+      return;
+    }
+
+    // 2. BORRAR - Solo pones: borrar J10
+    if (esAdmin && text.startsWith('borrar ')) {
+      let clave = buscarProducto(rawText.replace(/borrar /i,'').trim());
+      if (!clave) { await send('No encontré ese producto'); return; }
+      let nombre = CATALOGO[clave].nombre;
+      delete CATALOGO[clave];
+      for (let a of ["1","2","3"]) delete ALMACENES[a][clave];
+      await send(`🗑️ Borrado 👑\n${nombre} ya no existe`);
+      return;
+    }
+
+    // 3. AGOTADO - Solo pones: agotado J10
+    if (esAdmin && text.startsWith('agotado ')) {
+      let clave = buscarProducto(rawText.replace(/agotado /i,'').trim());
+      if (!clave) { await send('No encontré ese producto'); return; }
+      for (let a of ["1","2","3"]) ALMACENES[a][clave] = 0;
+      await send(`✅ AGOTADO 👑\n${CATALOGO[clave].nombre} = 0 en los 3 almacenes`);
+      return;
+    }
+
+    // 4. VER ALMACEN - Para ver como está todo
+    if (esAdmin && text.startsWith('ver almacen')) {
+      let num = text.replace('ver almacen','').trim();
+      if (ALMACENES[num]) {
+        let txt = `📦 *ALMACÉN ${num} KAIROS*\n\n`;
+        for (let k in CATALOGO) txt += `${CATALOGO[k].nombre} - ${CATALOGO[k].precio} USD - Stock: ${ALMACENES[num][k] ?? 0}\n`;
+        await send(txt); return;
+      }
+      let txt = `📦 *TODOS LOS ALMACENES*\n\n`;
+      for (let a of ["1","2","3"]) { txt += `--- ALMACÉN ${a} ---\n`; for (let k in CATALOGO) txt += `${CATALOGO[k].nombre}: ${ALMACENES[a][k] ?? 0}\n`; txt += `\n`; }
+      await send(txt); return;
+    }
+
+    // 5. ENTRADA - Si quieres sumar, Ej: entrada 1 J10 5
+    if (esAdmin && text.startsWith('entrada')) {
+      let partes = rawText.split(' ');
+      let almacenNum = partes[1];
+      let clave = buscarProducto(partes[2]);
+      let cant = parseInt(partes[3]);
+      if (ALMACENES[almacenNum] && clave && !isNaN(cant)) {
+        ALMACENES[almacenNum][clave] += cant;
+        await send(`✅ Entrada hecha 👑\nAlmacén ${almacenNum} - ${CATALOGO[clave].nombre} +${cant}\nAhora tienes: ${ALMACENES[almacenNum][clave]}`);
+      } else await send(`Pon: entrada 1 J10 5`);
+      return;
+    }
+
+    // 6. AGREGAR PRODUCTO - Ej: agregar producto LAMPARA 15 Lámpara Solar
+    if (esAdmin && text.startsWith('agregar producto')) {
+      let resto = rawText.replace(/agregar producto /i, '').trim();
+      let partes = resto.split(' ');
+      let clave = partes[0].toUpperCase();
+      let precio = parseInt(partes[1]);
+      let nombreDesc = partes.slice(2).join(' ');
+      if (!clave || isNaN(precio) || !nombreDesc) { await send(`Pon: agregar producto LAMPARA 15 Lámpara Solar`); return; }
+      CATALOGO[clave] = { nombre: nombreDesc, precio: precio, comision: 1200, desc: nombreDesc };
+      for (let a of ["1","2","3"]) { if (ALMACENES[a][clave] === undefined) ALMACENES[a][clave] = 0; }
+      await send(`✅ Producto creado 👑\n${clave} - ${nombreDesc} - ${precio} USD`);
+      return;
+    }
+
+
+
+    
       ACTUALIZANDO = text.match(/(\d)/)[1];
       await send(`📦 Vas a actualizar el ALMACÉN ${ACTUALIZANDO}\n\nManda así, un producto por línea:\nArrocera marwa 27 USD\nPanel solar LONGi 635 120 USD\nCasco de moto 35 USD x5\n\nEl último número antes de USD es el precio.\nSi pones x5 al final, pone 5 en stock. Si no, pone 1.`);
       return;
@@ -415,11 +503,14 @@ if (esAdmin && text.startsWith('limpiar almacen')) {
 
     let ped = pedidos[from] || { paso: 'inicio', productos: [], nombreComercial: '' };
 
-    if ((text.includes('hola') || text.includes('menu') || text.includes('catalogo')) && (!ped.paso || ped.paso === 'inicio')) {
+if ((text.includes('hola') || text.includes('menu') || text.includes('catalogo')) && (!ped.paso || ped.paso === 'inicio')) {
       pedidos[from] = { paso: 'nombre', productos: [] };
       await send(`Hola, bendecido día 🙏\nBienvenido a KAIROS SHOP 👑\n\nAntes de empezar, ¿cómo te llamas? (Nombre del comercial)`);
       return;
-    }
+}
+
+
+  
 
     if (ped.paso === 'nombre') {
       ped.nombreComercial = rawText;
