@@ -1,6 +1,4 @@
-// KAIROS BOT - VERSION FINAL COMPLETA
-
-// KAIROS BOT - VERSION FINAL COMPLETA
+// KAIROS BOT - VERSION FINAL COMPLETA ARREGLADA
 const http = require('http');
 const QRCode = require('qrcode');
 const fs = require('fs');
@@ -33,15 +31,6 @@ async function backup_to_github() {
     console.log('✅ Backup subido a GitHub');
   } catch(e) { console.log('❌ Error backup:', e.message); }
 }
-
-
-
-
-
-
-
-
-
 
 http.createServer(async (req, res) => {
   if (req.url === '/qr') {
@@ -84,6 +73,7 @@ function guardarTodo() {
   try { fs.writeFileSync('admins.json', JSON.stringify([...ADMIN_OK])); } catch(e) {}
   try { fs.writeFileSync('agotados.json', JSON.stringify([...AGOTADOS])); } catch(e) {}
   try { fs.writeFileSync('gestores.json', JSON.stringify(GESTORES)); } catch(e) {}
+  backup_to_github();
 }
 
 let PEDIDOS = {};
@@ -132,22 +122,20 @@ async function start() {
     const m = messages[0];
     if (!m.message || m.key.fromMe) return;
     const from = m.key.remoteJid;
-
-
+    const rawText = (m.message.conversation || m.message.extendedTextMessage?.text || '').trim();
 
     // EN LOS GRUPOS NO RESPONDE, SOLO ESCUCHA A LOUIS PARA CONFIRMAR
-if (from.endsWith('@g.us')) {
-  const quienHabla = m.key.participant || m.participant || '';
-  const esLouisGrupo = quienHabla === LOUIS_JID || quienHabla === LOUIS_LID || quienHabla.includes('5356947882') || quienHabla.includes('132624865579031');
-  const mcGrupo = rawText.match(/kairos[-\s]?(\d+)\s+confirmado/i);
-  if (esLouisGrupo && mcGrupo) {
-    // deja que siga abajo a confirmar, no lo cortes
-  } else {
-    return; // en el grupo nadie mas lo activa
-  }
-}
+    if (from.endsWith('@g.us')) {
+      const quienHabla = m.key.participant || m.participant || '';
+      const esLouisGrupo = quienHabla === LOUIS_JID || quienHabla === LOUIS_LID || quienHabla.includes('5356947882') || quienHabla.includes('132624865579031');
+      const mcGrupo = rawText.match(/kairos[-\s]?(\d+)\s+confirmado/i);
+      if (esLouisGrupo && mcGrupo) {
+        // deja que siga abajo a confirmar, no lo cortes
+      } else {
+        return;
+      }
+    }
     const nombreGestor = m.pushName || from;
-    const rawText = (m.message.conversation || m.message.extendedTextMessage?.text || '').trim();
     const text = rawText.toLowerCase().trim();
     const send = async (t) => { await sock.sendMessage(from, { text: t }); };
     const esLouis = from === LOUIS_JID || from === LOUIS_LID;
@@ -162,7 +150,6 @@ if (from.endsWith('@g.us')) {
     }
     if (text === 'tasa' || text === 'toque') { await send('El Toque +10\nUSD: ' + TASA_USD + ' MN\nEUR: ' + TASA_EUR + ' MN'); return; }
 
-    // ===== PRIMERA VEZ DEL GESTOR: PEDIR NOMBRE Y GUARDARLO =====
     if (!esAdmin && !GESTORES[from] && !PIDIENDO_NOMBRE.has(from)) {
       PIDIENDO_NOMBRE.add(from);
       await send('Hola, bienvenido a KAIROS.\nEres nuevo, dime tu nombre completo para guardarte.\nEj: Maria Lopez');
@@ -178,7 +165,6 @@ if (from.endsWith('@g.us')) {
       return;
     }
 
-    // ===== ACTUALIZAR ALMACEN =====
     if (esAdmin && text.includes('actualizar')) {
       let num = '1';
       if (text.includes('2')) num = '2';
@@ -225,7 +211,6 @@ if (from.endsWith('@g.us')) {
       await send(t); return;
     }
 
-    // ===== CONFIRMAR VALE =====
     const mc = rawText.match(/kairos[-\s]?(\d+)\s+confirmado/i);
     if (esLouis && mc) {
       const nv = parseInt(mc[1], 10);
@@ -266,7 +251,6 @@ if (from.endsWith('@g.us')) {
       t += 'Escribe el numero o el nombre del producto que quieres.'; await send(t); return;
     }
 
-    // ===== ELEGIR POR NUMERO O NOMBRE =====
     if (!PEDIDOS[from]) {
       let productoEncontrado = null;
       if (/^[0-9]+$/.test(text.trim())) {
@@ -350,7 +334,7 @@ if (from.endsWith('@g.us')) {
         const totalMNFinal = ped.metodoPago === 'EUR' ? totalUSD * TASA_EUR : totalUSD * TASA_USD;
         const vale = { numero: CONTADOR, gestor: from, gestorNombre: ped.gestorNombre || GESTORES[from] || nombreGestor, cliente: ped.cliente, telefonoCliente: ped.telefonoCliente, metodoPago: ped.metodoPago, productos: ped.productos, tipo: 'mensajeria', direccion: ped.direccion, totalUSD, costoMensajeria: costo };
         VALES[CONTADOR] = vale; delete PEDIDOS[from];
-        const tv = 'VALE KAIROS-' + String(CONTADOR).padStart(3, '0') + ' (PENDIENTE)\n\nGestor: ' + vale.gestorNombre + '\nCliente: ' + vale.cliente + '\nTelefono cliente: ' + vale.telefonoCliente + '\nPago: ' + vale.metodoPago + '\nProductos:\n' + vale.productos.map(p => '- ' + p.nombre + ' x' + p.cant + ' = ' + (p.precioUSD * p.cant) + ' USD').join('\n') + '\n\nTotal: ' + totalUSD + ' ' + vale.metodoPago + '\nTotal MN ref: ' + totalMNFinal + ' MN (Toque +10)\n\nMensajeria: ' + costo + ' MN\nZona: ' + (enc ? enc[0] : 'Preguntar') + '\nDireccion: ' + vale.direccion + '\n\nLouis pon: kairos-' + String(CONTADOR).padStart(3, '0') + ' confirmado';
+        const tv = 'VALE KAIROS-' + String(CONTADOR).padStart(3, '0') +' confirmado';
         await sock.sendMessage(LOUIS_LID, { text: tv }); await send('Vale creado. Mensajeria: ' + costo + ' MN. Enviado a Louis.'); return;
       }
     }
