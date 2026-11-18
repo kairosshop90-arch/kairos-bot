@@ -1,204 +1,301 @@
-// ============================================
-// KAIROS BOT - VERSION FINAL - BIEN HECHA
-// Archivo: bot.js - Start: node bot.js
-// ============================================
-const http = require('http');
-const QRCode = require('qrcode');
-let ULTIMO_QR = '';
-
-http.createServer(async (req, res) => {
-  if (req.url === '/qr') {
-    if (!ULTIMO_QR) { res.end('Aun no hay QR, espera 20 seg y recarga.'); return; }
-    const img = await QRCode.toDataURL(ULTIMO_QR);
-    res.end('<h1>KAIROS - Escanea el QR</h1><img src="' + img + '" style="width:350px">');
-    return;
-  }
-  res.end('KAIROS OK - Ve a /qr para vincular');
-}).listen(process.env.PORT || 3000);
-
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 
-// --- TUS DATOS ---
-const LOUIS_JID = '5356947882@s.whatsapp.net';
+// ===== TUS DATOS =====
+const LOUIS_JID = '5356947882@s.whatsapp.net'; // Tu numero 56947882
 const LOUIS_LID = '132624865579031@lid';
-const GRUPO_LOCAL = '120363417801594416@g.us';
-const GRUPO_MENSAJERIA = '120363419483851412@g.us';
+const GRUPO_RECOGIDA = '120207345678901234@g.us'; // <-- PON ID DE GRUPO RECOGIDA
+const GRUPO_MENSAJERIA = '120207345678901235@g.us'; // <-- PON ID DE GRUPO MENSAJERIA
+
+// ===== PRODUCTOS =====
+const PRODUCTOS = [
+  { nombre: 'Panel Solar LONGi 635W', precioUSD: 150 },
+  { nombre: 'Inversor 5KW', precioUSD: 400 },
+  { nombre: 'Bateria Litio 5KW', precioUSD: 800 },
+  { nombre: 'Panel Solar 550W', precioUSD: 120 },
+];
+
+// Tasas
+const TASA_MN = 400; // 1 USD = 400 MN
+const TASA_EUR = 0.92; // 1 USD = 0.92 EUR
+
+// Direcciones de locales
 const DIRECCIONES = {
-  1: 'Calle 1ra / 2da y 4ta No.23308. Altura del Mirador',
-  2: 'Calle 2da #18532 / E y D. Luyano Moderno, San Miguel del Padron',
-  3: 'En espera de direccion'
+  '1': 'Centro Habana - Calle Neptuno #123',
+  '2': 'Vedado - Calle 23 #456',
+  '3': 'Marianao - Ave 51 #789',
 };
 
-// --- ESTADO ---
-let CATALOGO = {};
-let AGOTADOS = new Set();
-let PEDIDOS = {};
-let VALES = {};
-let CONTADOR = 0;
-let ACTUALIZANDO = null;
-let ADMIN_OK = new Set();
-let TASA_USD = 450, TASA_EUR = 480;
-
-// --- TASA EL TOQUE +10 ---
-async function actualizarTasa() {
-  try { const r = await fetch('https://api.eltoque.com/v1/trmi'); const j = await r.json(); if (j?.tasa) TASA_USD = Math.round(j.tasa) + 10; } catch (e) {}
-  try { const r2 = await fetch('https://api.eltoque.com/v1/trmi?moneda=EUR'); const j2 = await r2.json(); if (j2?.tasa) TASA_EUR = Math.round(j2.tasa) + 10; } catch (e) {}
+// Mensajeria por zona
+function costoMensajeria(zona) {
+  zona = zona.toLowerCase();
+  if (zona.includes('centro') || zona.includes('vedado') || zona.includes('plaza')) return { costo: 500, detalle: 'Zona Centro - 500 MN' };
+  if (zona.includes('playa') || zona.includes('marianao') || zona.includes('lisa')) return { costo: 800, detalle: 'Zona Lejos - 800 MN' };
+  return { costo: 700, detalle: 'Zona ' + zona + ' - 700 MN' };
 }
-actualizarTasa();
-setInterval(actualizarTasa, 15 * 60 * 1000);
 
-// --- MENSAJERIA ---
-const MENSAJERIA = [
-  ['SAN MIGUEL', 1000], ['GUANABACOA', 2000], ['REGLA', 2000], ['CENTRO HABANA', 2000],
-  ['VEDADO', 2000], ['PLAYA', 3000], ['COTORRO', 2500], ['DIEZ DE OCTUBRE', 2000],
-  ['CERRO', 2000], ['MARIANAO', 3500], ['GUANABO', 6000], ['ALAMAR', 2500],
-  ['COJIMAR', 2500], ['VIBORA', 2000], ['LAWTON', 2000], ['ARROYO NARANJO', 2500],
-  ['BOYERO', 2500], ['LA LISA', 3500], ['HABANA VIEJA', 2000], ['PLAZA', 2000]
-];
-function buscarMensajeria(t) {
-  t = t.toUpperCase(); let mejor = null;
-  for (const [z, p] of MENSAJERIA) { if (t.includes(z)) { if (!mejor || z.length > mejor[0].length) mejor = [z, p]; } }
-  return mejor;
-}
-function esGrande(n) { n = n.toUpperCase(); return n.includes('NEVERA') || n.includes('FRIO') || n.includes('FRÍO') || n.includes('PLANTA') || n.includes('EXHIBIDORA') || n.includes('TV'); }
-function comisionDe(prods) { let t = 0; for (const p of prods) t += esGrande(p.nombre) ? 2500 : 1200; return t; }
+const GESTORES = {}; // from -> nombre
+const PEDIDOS = {}; // from -> pedido en curso
+const VALES = {}; // numero -> vale
+let CONTADOR = 1;
 
-// --- BOT ---
 async function start() {
-  const { state, saveCreds } = await useMultiFileAuthState('sesion-kairos');
-  const sock = makeWASocket({ logger: pino({ level: 'silent' }), auth: state, printQRInTerminal: true });
+  const { state, saveCreds } = await useMultiFileAuthState('auth_kairos');
+  const sock = makeWASocket({ auth: state, logger: pino({ level: 'silent' }) });
   sock.ev.on('creds.update', saveCreds);
+
   sock.ev.on('connection.update', (u) => {
-    if (u.qr) { ULTIMO_QR = u.qr; console.log('QR NUEVO - VE A /qr'); }
-    if (u.connection === 'close') {
-      const rec = u.lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-      if (rec) start();
-    } else if (u.connection === 'open') console.log('KAIROS CONECTADO');
+    const { connection, lastDisconnect } = u;
+    if (connection === 'close') {
+      const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+      if (shouldReconnect) start();
+    }
+    if (connection === 'open') console.log('KAIROS CONECTADO ✅');
   });
 
   sock.ev.on('messages.upsert', async ({ messages }) => {
     const m = messages[0];
     if (!m.message || m.key.fromMe) return;
     const from = m.key.remoteJid;
+    const isGroup = from.endsWith('@g.us');
     const rawText = (m.message.conversation || m.message.extendedTextMessage?.text || '').trim();
-    const text = rawText.toLowerCase().trim();
-    const send = async (t) => { await sock.sendMessage(from, { text: t }); };
+    const text = rawText.toLowerCase();
+    const isLouis = from === LOUIS_JID || from === LOUIS_LID;
+    const send = (t) => sock.sendMessage(from, { text: t });
 
-    const esLouis = from === LOUIS_JID || from === LOUIS_LID;
-    const esAdmin = ADMIN_OK.has(from) || esLouis;
-
-    // --- COMANDOS BASICOS ---
-    if (text === 'mi id') { await send('Tu ID es: ' + from); return; }
-    if (text === 'cancelar' || text === 'reiniciar' || text === 'menu') { delete PEDIDOS[from]; ACTUALIZANDO = null; await send('Listo, borre lo que estabas haciendo. Escribe *catalogo*'); return; }
-    if (text === 'soy admin kairos123') { ADMIN_OK.add(from); await send('Bienvenido Admin KAIROS.\nComandos: actualizar almacen 1, quitar producto X, agotado X, ver catalogo'); return; }
-    if (text === 'tasa' || text === 'toque') { await send('El Toque +10\nUSD: ' + TASA_USD + ' MN\nEUR: ' + TASA_EUR + ' MN'); return; }
-
-    // --- ADMIN: CATALOGO ---
-    if (esAdmin && /^actualizar\s+almac[eé]n\s+[123]$/.test(text)) {
-      ACTUALIZANDO = text.match(/([123])/)[1];
-      await send('Vas a actualizar ALMACEN ' + ACTUALIZANDO + '\nManda la lista, un producto por linea:\nPanel solar LONGi 635 - 400\nAl enviar, se BORRA lo anterior.');
-      return;
-    }
-    if (esAdmin && ACTUALIZANDO) {
-      for (const k in CATALOGO) { if (CATALOGO[k].almacen === ACTUALIZANDO) delete CATALOGO[k]; }
-      const ag = [];
-      for (const l of rawText.split('\n')) {
-        const lim = l.trim().replace(/^[✅☑️✔️•\-\* ]+/, '').trim(); if (!lim) continue;
-        const pa = lim.split(' - '); const nom = pa[0].trim(); const pre = pa[1] ? parseFloat(pa[1].replace(/[^0-9.]/g, '')) : 0;
-        const cl = nom.toUpperCase(); CATALOGO[cl] = { nombre: nom, precioUSD: pre, almacen: ACTUALIZANDO }; AGOTADOS.delete(cl); ag.push(nom + ' - ' + pre + ' USD');
-      }
-      await send('Listo. Almacen ' + ACTUALIZANDO + ' actualizado.\n\n' + ag.join('\n')); ACTUALIZANDO = null; return;
-    }
-    if (esAdmin && text.startsWith('quitar producto ')) {
-      const n = rawText.substring(15).trim().toUpperCase();
-      if (CATALOGO[n]) { delete CATALOGO[n]; await send('Quitado: ' + n); } else await send('No encontre ese producto.');
-      return;
-    }
-    if (esAdmin && text.startsWith('agotado ')) { const n = rawText.substring(8).trim().toUpperCase(); AGOTADOS.add(n); await send(n + ' marcado AGOTADO.'); return; }
-    if (esAdmin && text === 'ver catalogo') {
-      let t = 'CATALOGO KAIROS\n\n';
-      for (const a of ['1', '2', '3']) { t += '--- ALMACEN ' + a + ' ---\n'; for (const k in CATALOGO) { if (CATALOGO[k].almacen === a) t += CATALOGO[k].nombre + ' - ' + CATALOGO[k].precioUSD + ' USD' + (AGOTADOS.has(k) ? ' AGOTADO' : '') + '\n'; } t += '\n'; }
-      await send(t); return;
-    }
-
-    // --- VALES: LOUIS CONFIRMA / ENTREGA ---
-    const mc = rawText.match(/kairos[-\s]?(\d+)\s+confirmado/i);
-    if (esLouis && mc) {
-      const nv = mc[1]; const v = VALES[nv]; if (!v) { await send('No encontre vale ' + nv); return; }
-      v.estado = 'confirmado';
-      let res = 'VALE KAIROS-' + nv + ' CONFIRMADO\n\nCliente: ' + v.cliente + '\nProductos:\n' + v.productos.map(p => '- ' + p.nombre + ' x' + p.cant + ' = ' + (p.cant * p.precioUSD) + ' USD').join('\n') + '\nTotal USD: ' + v.totalUSD + '\nTotal MN: ' + (v.totalUSD * TASA_USD) + '\nMensajeria: ' + v.costoMensajeria + ' MN';
-      if (v.tipo === 'recogida') {
-        res += '\nRecogida en: ' + DIRECCIONES[v.almacen];
-        await sock.sendMessage(GRUPO_LOCAL, { text: res });
-        await sock.sendMessage(v.gestor, { text: 'Tu vale KAIROS-' + nv + ' CONFIRMADO. Recoger en: ' + DIRECCIONES[v.almacen] });
-      } else {
-        res += '\nMensajeria a: ' + v.direccion;
-        await sock.sendMessage(GRUPO_MENSAJERIA, { text: res });
-        await sock.sendMessage(v.gestor, { text: 'Tu vale KAIROS-' + nv + ' CONFIRMADO. Va por mensajeria.' });
-      }
-      await send('Vale ' + nv + ' enviado al grupo.'); return;
-    }
-    const me = rawText.match(/vale\s+kairos[-\s]?(\d+)\s+entregado/i);
-    if (esLouis && me) {
-      const nv = me[1]; const v = VALES[nv]; if (!v) { await send('No encontre vale ' + nv); return; }
-      const com = comisionDe(v.productos);
-      await sock.sendMessage(v.gestor, { text: 'VALE KAIROS-' + nv + ' ENTREGADO. Tu comision: ' + com + ' MN' });
-      await send('Entrega notificada. Comision: ' + com); return;
-    }
-
-    // --- GESTOR: FLUJO ---
-    if (text.includes('hola') || text.includes('buenas') || text.includes('bendecido')) { delete PEDIDOS[from]; await send('Hola, bendecido dia, bienvenido a KAIROS. Soy el gestor de KAIROS.\n\nEscribe: *catalogo*'); return; }
-    if (text === 'catálogo' || text === 'catalogo') {
-      let t = 'CATALOGO KAIROS\n\n';
-      for (const a of ['1', '2', '3']) { t += '--- ALMACEN ' + a + ' ---\n'; let hay = false; for (const k in CATALOGO) { if (CATALOGO[k].almacen === a) { hay = true; t += CATALOGO[k].nombre + ' - ' + CATALOGO[k].precioUSD + ' USD' + (AGOTADOS.has(k) ? ' AGOTADO' : '') + '\n'; } } if (!hay) t += '(Vacio)\n'; t += '\n'; }
-      t += 'Escribe el nombre exacto del producto que quieres.'; await send(t); return;
-    }
-
-    const clave = text.toUpperCase();
-    if (CATALOGO[clave] && !PEDIDOS[from]) {
-      if (AGOTADOS.has(clave)) { await send('Ese producto esta AGOTADO.'); return; }
-      PEDIDOS[from] = { gestor: from, productos: [{ nombre: CATALOGO[clave].nombre, precioUSD: CATALOGO[clave].precioUSD, cant: 0, almacen: CATALOGO[clave].almacen }], paso: 'cantidad', actual: 0 };
-      await send(CATALOGO[clave].nombre + ' - ' + CATALOGO[clave].precioUSD + ' USD\n\n¿Cuantos quieres? Ej: 2'); return;
-    }
-
-    const ped = PEDIDOS[from];
-    if (ped) {
-      if (ped.paso === 'cantidad') {
-        const cant = parseInt(text); if (isNaN(cant) || cant <= 0) { await send('Pon un numero, ej: 2'); return; }
-        ped.productos[ped.actual].cant = cant; ped.paso = 'otra'; await send('¿Quieres otra cosa? Escribe *SI* o *NO*'); return;
-      }
-      if (ped.paso === 'otra') {
-        if (text === 'no') { ped.paso = 'datos'; await send('Perfecto. Dime:\nNombre Apellido Carnet\nEj: Juan Perez 12345678901'); return; }
-        if (text.startsWith('si')) { ped.paso = 'otro_nombre'; await send('Dime el nombre del otro producto:'); return; }
-        await send('Escribe SI o NO'); return;
-      }
-      if (ped.paso === 'otro_nombre') {
-        if (CATALOGO[clave]) { ped.productos.push({ nombre: CATALOGO[clave].nombre, precioUSD: CATALOGO[clave].precioUSD, cant: 0, almacen: CATALOGO[clave].almacen }); ped.actual = ped.productos.length - 1; ped.paso = 'cantidad'; await send(CATALOGO[clave].nombre + ' - ' + CATALOGO[clave].precioUSD + ' USD\n¿Cuantos?'); }
-        else await send('No encontre ese producto. Escribe el nombre exacto.');
+    // ===== LOUIS CONFIRMA =====
+    if (isLouis && text.includes('confirmado')) {
+      const mc = rawText.match(/kairos[-\s]?(\d+)/i);
+      if (mc) {
+        const num = parseInt(mc[1]);
+        const vale = VALES[num];
+        if (!vale) { await send('Ese vale no existe.'); return; }
+        vale.estado = 'confirmado'; delete VALES[num];
+        let soloNombre = vale.cliente.replace(/\d+/g, '').trim();
+        let textoGrupo = 'VALE KAIROS-' + String(num).padStart(3, '0') + ' ✅ CONFIRMADO\n\n';
+        textoGrupo += 'Nombre: ' + soloNombre + '\n';
+        if (vale.tipo === 'recogida') {
+          textoGrupo += 'RECOGIDA en Local - Almacen ' + vale.almacen + ':\n' + DIRECCIONES[vale.almacen] + '\n';
+          textoGrupo += 'Productos:\n' + vale.productos.map(p => '- ' + p.nombre + ' x' + p.cant).join('\n');
+          textoGrupo += '\n\nPAGA EN: ' + vale.formaPago + ' - ' + vale.totalPagar;
+          textoGrupo += '\nGestor: ' + vale.nombreGestor;
+          await sock.sendMessage(GRUPO_RECOGIDA, { text: textoGrupo });
+          await sock.sendMessage(vale.gestor, { text: '✅ Tu vale KAIROS-' + String(num).padStart(3, '0') + ' esta CONFIRMADO.\nEl cliente recoge en: ' + DIRECCIONES[vale.almacen] });
+        } else {
+          textoGrupo += 'Telefono: ' + vale.telefono + '\n';
+          textoGrupo += 'MENSAJERIA\nDireccion: ' + vale.direccion + '\nZona: ' + (vale.zona || '') + '\n';
+          textoGrupo += 'Productos:\n' + vale.productos.map(p => '- ' + p.nombre + ' x' + p.cant).join('\n');
+          textoGrupo += '\n\nMENSAJERIA:\n' + (vale.detalleMensajeria || '') + '\nTotal Mensajeria: ' + vale.costoMensajeria + ' MN';
+          textoGrupo += '\n\nPAGA EN: ' + vale.formaPago + ' - ' + vale.totalPagar;
+          textoGrupo += '\nGestor: ' + vale.nombreGestor;
+          await sock.sendMessage(GRUPO_MENSAJERIA, { text: textoGrupo });
+          await sock.sendMessage(vale.gestor, { text: '✅ Tu vale KAIROS-' + String(num).padStart(3, '0') + ' esta CONFIRMADO.\nMensajeria: ' + vale.costoMensajeria + ' MN a ' + vale.direccion });
+        }
+        await send('Vale KAIROS-' + String(num).padStart(3, '0') + ' confirmado y enviado al grupo de ' + vale.tipo + '.');
         return;
       }
-      if (ped.paso === 'datos') { ped.cliente = rawText; ped.paso = 'tipo'; await send('¿Mensajeria o recogida?\nEscribe: *mensajería* o *recogida*'); return; }
-      if (ped.paso === 'tipo') {
-        if (text.includes('recogida')) {
-          CONTADOR++; const totalUSD = ped.productos.reduce((s, p) => s + p.precioUSD * p.cant, 0);
-          const vale = { numero: CONTADOR, gestor: from, cliente: ped.cliente, productos: ped.productos, tipo: 'recogida', almacen: ped.productos[0].almacen, totalUSD, costoMensajeria: 0 };
-          VALES[CONTADOR] = vale; delete PEDIDOS[from];
-          const tv = 'VALE KAIROS-' + String(CONTADOR).padStart(3, '0') + ' (PENDIENTE)\n\nCliente: ' + vale.cliente + '\nProductos:\n' + vale.productos.map(p => '- ' + p.nombre + ' x' + p.cant + ' = ' + (p.precioUSD * p.cant) + ' USD').join('\n') + '\n\nTotal USD: ' + totalUSD + '\nTotal MN: ' + (totalUSD * TASA_USD) + '\n\nRecogida en:\n' + DIRECCIONES[vale.almacen] + '\n\nLouis pon: kairos-' + String(CONTADOR).padStart(3, '0') + ' confirmado';
-          await sock.sendMessage(LOUIS_LID, { text: tv }); await send('Vale creado y enviado a Louis.'); return;
-        }
-        if (text.includes('mensajer')) { ped.paso = 'direccion'; await send('Dime la direccion completa y municipio.\nEj: Calle 10 #123, Centro Habana'); return; }
-        await send('Escribe: mensajería o recogida'); return;
+    }
+
+    if (isGroup) return;
+    if (isLouis) return;
+
+    let ped = PEDIDOS[from];
+
+    // ===== BIENVENIDA =====
+    if (!GESTORES[from] && !ped) {
+      PEDIDOS[from] = { paso: 'nombre_gestor', productos: [] };
+      await send('🙏 Bendecido día para ti, comercial de Kairos ✨\n¿Cómo se llama? 😊');
+      return;
+    }
+    if (ped && ped.paso === 'nombre_gestor') {
+      const nombreGestor = rawText.trim();
+      GESTORES[from] = nombreGestor;
+      delete PEDIDOS[from];
+      await send('🙏 Bendecido día para ti también, *' + nombreGestor + '* ✨\n\nYa te guardé, comercial de Kairos ✅\n\nPara empezar a vender, escribe:\n📦 *CATALOGO*');
+      return;
+    }
+    if (GESTORES[from] && (text === 'hola' || text === 'buenas' || text === 'buenos dias')) {
+      await send('🙏 Bendecido día para ti, *' + GESTORES[from] + '*, comercial de Kairos ✨\n\n¿Vamos a hacer un pedido? 😊\nEscribe 📦 *CATALOGO*');
+      return;
+    }
+
+    // ===== CATALOGO =====
+    if (text === 'catalogo') {
+      let msg = '📦 *CATALOGO KAIROS* ✨\n\n';
+      PRODUCTOS.forEach((p, i) => { msg += '*' + (i + 1) + '.* ' + p.nombre + '\n   💲 ' + p.precioUSD + ' USD\n'; });
+      msg += '\nCuando quieras pedir, escribe:\n👉 *PEDIDO*';
+      await send(msg);
+      return;
+    }
+
+    // ===== PEDIDO =====
+    if (text === 'pedido') {
+      PEDIDOS[from] = { paso: 'elegir', productos: [] };
+      await send('🙏 Perfecto, comercial de Kairos ✨\n\n¿Qué quieres pedir?\n\nPuedes poner el *número* del producto o el *nombre completo*\n\nEj: *1* o *Panel Solar LONGi 635W*');
+      return;
+    }
+
+    if (!ped) {
+      await send('🙏 Bendecido día, *' + (GESTORES[from] || '') + ' ✨\nEscribe 📦 *CATALOGO* para ver los productos.');
+      return;
+    }
+
+    // ===== ELEGIR =====
+    if (ped.paso === 'elegir') {
+      let prod = null;
+      if (/^\d+$/.test(rawText.trim())) {
+        let idx = parseInt(rawText.trim()) - 1;
+        if (PRODUCTOS[idx]) prod = PRODUCTOS[idx];
+      } else {
+        prod = PRODUCTOS.find(p => p.nombre.toLowerCase() === rawText.toLowerCase())
+          || PRODUCTOS.find(p => p.nombre.toLowerCase().includes(rawText.toLowerCase()))
+          || PRODUCTOS.find(p => rawText.toLowerCase().includes(p.nombre.toLowerCase().split(' ')[0].toLowerCase()));
       }
-      if (ped.paso === 'direccion') {
-        ped.direccion = rawText; const enc = buscarMensajeria(rawText); let costo = enc ? enc[1] : 0;
-        const totalCant = ped.productos.reduce((s, p) => s + p.cant, 0); if (totalCant >= 3) costo = costo * 2;
-        ped.costoMensajeria = costo; CONTADOR++; const totalUSD = ped.productos.reduce((s, p) => s + p.precioUSD * p.cant, 0);
-        const vale = { numero: CONTADOR, gestor: from, cliente: ped.cliente, productos: ped.productos, tipo: 'mensajeria', direccion: ped.direccion, totalUSD, costoMensajeria: costo };
-        VALES[CONTADOR] = vale; delete PEDIDOS[from];
-        const tv = 'VALE KAIROS-' + String(CONTADOR).padStart(3, '0') + ' (PENDIENTE)\n\nCliente: ' + vale.cliente + '\nProductos:\n' + vale.productos.map(p => '- ' + p.nombre + ' x' + p.cant + ' = ' + (p.precioUSD * p.cant) + ' USD').join('\n') + '\n\nTotal USD: ' + totalUSD + '\nTotal MN: ' + (totalUSD * TASA_USD) + '\n\nMensajeria: ' + costo + ' MN\nZona: ' + (enc ? enc[0] : 'Preguntar') + '\nDireccion: ' + vale.direccion + '\n\nLouis pon: kairos-' + String(CONTADOR).padStart(3, '0') + ' confirmado';
-        await sock.sendMessage(LOUIS_LID, { text: tv }); await send('Vale creado. Mensajeria: ' + costo + ' MN. Enviado a Louis.'); return;
+      if (!prod) { await send('No encontré ese producto 😅\nRevisa el catálogo y pon el *número* o el *nombre completo*\nEj: *1*'); return; }
+      ped.productoActual = prod;
+      ped.paso = 'cantidad';
+      await send('✅ *' + prod.nombre + '*\n💲 ' + prod.precioUSD + ' USD\n\n¿Cuántos quieres?');
+      return;
+    }
+
+    // ===== CANTIDAD =====
+    if (ped.paso === 'cantidad') {
+      const cant = parseInt(rawText);
+      if (!cant || cant <= 0) { await send('Pon un número válido, ej: 2'); return; }
+      ped.productos.push({ ...ped.productoActual, cant });
+      ped.paso = 'otro';
+      await send('Agregado ✅ ' + ped.productoActual.nombre + ' x' + cant + '\n\n¿Quieres agregar otro producto?\nEscribe *SI* y el nombre o número, o *NO* para seguir.');
+      return;
+    }
+
+    // ===== OTRO =====
+    if (ped.paso === 'otro') {
+      if (text === 'no') {
+        ped.paso = 'datos';
+        await send('Perfecto.\n\nAhora dime los datos del cliente:\n*Nombre Apellido Carnet*\nEj: Juan Perez 12345678901');
+        return;
       }
+      if (text === 'si') {
+        ped.paso = 'elegir';
+        await send('Dime qué otro producto quieres, por número o nombre:');
+        return;
+      }
+      // Si pone directo otro producto
+      ped.paso = 'elegir';
+      // Re-procesar como elegir
+      let prod = null;
+      if (/^\d+$/.test(rawText.trim())) {
+        let idx = parseInt(rawText.trim()) - 1;
+        if (PRODUCTOS[idx]) prod = PRODUCTOS[idx];
+      } else {
+        prod = PRODUCTOS.find(p => p.nombre.toLowerCase().includes(rawText.toLowerCase()));
+      }
+      if (prod) {
+        ped.productoActual = prod; ped.paso = 'cantidad';
+        await send('✅ *' + prod.nombre + '*\n¿Cuántos quieres?');
+      } else {
+        await send('No entendí. Escribe *SI* o *NO*');
+        ped.paso = 'otro';
+      }
+      return;
+    }
+
+    // ===== DATOS =====
+    if (ped.paso === 'datos') {
+      ped.cliente = rawText;
+      ped.paso = 'telefono';
+      await send('Ya tengo el nombre y carnet.\n\nAhora dime el *numero de telefono del cliente*\nEj: 5356947882');
+      return;
+    }
+
+    // ===== TELEFONO =====
+    if (ped.paso === 'telefono') {
+      ped.telefono = rawText.replace(/[^0-9]/g, '');
+      ped.paso = 'tipo';
+      await send('Perfecto.\n\n¿Cómo lo quiere el cliente?\n\nEscribe:\n🚚 *MENSAJERIA* - se lo llevamos a su casa\n🏪 *LOCAL* - lo recoge en el local');
+      return;
+    }
+
+    // ===== TIPO =====
+    if (ped.paso === 'tipo') {
+      if (text.includes('local')) {
+        ped.tipo = 'recogida'; ped.paso = 'almacen';
+        await send('¿En qué almacén recoge?\n\n1 - Centro Habana\n2 - Vedado\n3 - Marianao\n\nEscribe el número: 1, 2 o 3');
+        return;
+      }
+      if (text.includes('mensajeria') || text.includes('mensaje')) {
+        ped.tipo = 'mensajeria'; ped.paso = 'direccion';
+        await send('Dime la *dirección completa* del cliente:');
+        return;
+      }
+      await send('Escribe *MENSAJERIA* o *LOCAL*');
+      return;
+    }
+
+    // ===== ALMACEN =====
+    if (ped.paso === 'almacen') {
+      if (!DIRECCIONES[rawText.trim()]) { await send('Pon 1, 2 o 3'); return; }
+      ped.almacen = rawText.trim();
+      ped.paso = 'pago';
+      let totalUSD = ped.productos.reduce((s, p) => s + p.precioUSD * p.cant, 0);
+      await send('Total sin mensajería: ' + totalUSD + ' USD\n\n¿Cómo paga el cliente?\n\n1 - USD\n2 - MN\n3 - EUR\n\nEscribe 1, 2 o 3');
+      return;
+    }
+
+    // ===== DIRECCION =====
+    if (ped.paso === 'direccion') {
+      ped.direccion = rawText;
+      ped.paso = 'zona';
+      await send('¿En qué zona es?\nEj: Vedado, Centro Habana, Playa, Marianao...');
+      return;
+    }
+
+    // ===== ZONA =====
+    if (ped.paso === 'zona') {
+      ped.zona = rawText;
+      const cm = costoMensajeria(rawText);
+      ped.costoMensajeria = cm.costo;
+      ped.detalleMensajeria = cm.detalle;
+      ped.paso = 'pago';
+      let totalUSD = ped.productos.reduce((s, p) => s + p.precioUSD * p.cant, 0);
+      await send('🚚 Mensajería: ' + cm.detalle + '\nTotal productos: ' + totalUSD + ' USD\n\n¿Cómo paga el cliente?\n\n1 - USD\n2 - MN\n3 - EUR\n\nEscribe 1, 2 o 3');
+      return;
+    }
+
+    // ===== PAGO =====
+    if (ped.paso === 'pago') {
+      let totalUSD = ped.productos.reduce((s, p) => s + p.precioUSD * p.cant, 0);
+      let forma = '', totalPagar = '';
+      if (rawText === '1') { forma = 'USD'; totalPagar = totalUSD + ' USD'; }
+      else if (rawText === '2') { forma = 'MN'; totalPagar = (totalUSD * TASA_MN + (ped.costoMensajeria || 0)) + ' MN'; }
+      else if (rawText === '3') { forma = 'EUR'; totalPagar = (totalUSD * TASA_EUR).toFixed(2) + ' EUR'; }
+      else { await send('Pon 1, 2 o 3'); return; }
+
+      const vale = {
+        numero: CONTADOR, gestor: from, nombreGestor: GESTORES[from] || from,
+        cliente: ped.cliente, telefono: ped.telefono, productos: ped.productos,
+        tipo: ped.tipo, direccion: ped.direccion || '', almacen: ped.almacen || '',
+        costoMensajeria: ped.costoMensajeria || 0, detalleMensajeria: ped.detalleMensajeria || '',
+        zona: ped.zona || '', formaPago: forma, totalPagar, totalUSD
+      };
+      VALES[CONTADOR] = vale;
+
+      let tv = 'VALE KAIROS-' + String(CONTADOR).padStart(3, '0') + ' (PENDIENTE)\n\n';
+      tv += 'Gestor: ' + vale.nombreGestor + '\n';
+      tv += 'Nombre: ' + vale.cliente + '\n';
+      tv += 'Telefono: ' + vale.telefono + '\n';
+      if (vale.tipo === 'recogida') tv += 'RECOGIDA - Almacen ' + vale.almacen + ': ' + DIRECCIONES[vale.almacen] + '\n';
+      else tv += 'MENSAJERIA - Direccion: ' + vale.direccion + ' - Zona: ' + vale.zona + ' - Mensajeria: ' + vale.costoMensajeria + ' MN\n';
+      tv += 'Productos:\n' + vale.productos.map(p => '- ' + p.nombre + ' x' + p.cant + ' = ' + (p.precioUSD * p.cant) + ' USD').join('\n');
+      tv += '\n\nPAGA EN: ' + forma + ' - ' + totalPagar;
+      tv += '\n\nLouis pon: Confirmado kairos-' + String(CONTADOR).padStart(3, '0');
+
+      await sock.sendMessage(LOUIS_JID, { text: tv });
+      await sock.sendMessage(LOUIS_LID, { text: tv });
+      await send('✅ Vale KAIROS-' + String(CONTADOR).padStart(3, '0') + ' enviado a Louis para confirmar.\nTe aviso cuando lo confirme.');
+      CONTADOR++;
+      delete PEDIDOS[from];
+      return;
     }
   });
 }
