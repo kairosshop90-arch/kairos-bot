@@ -147,6 +147,7 @@ function calcularMensajeria(direccion, productos, textoCompleto) {
 }
 
 function buscarProducto(nombre) {
+  if (nombre.trim() === '1' || nombre.trim() === '2' || nombre.trim() === '3') return null;
   let n = nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 
   // 1. Primero busca EXACTO: "arrocera marwa" == "arrocera marwa"
@@ -162,7 +163,7 @@ function buscarProducto(nombre) {
   return null;
 }
 
-async function start() {
+uasync function start() {
   const { version } = await fetchLatestBaileysVersion();
   const { state, saveCreds } = await useMultiFileAuthState('auth_info');
   const sock = makeWASocket({ version, logger: pino({ level: 'silent' }), auth: state, browser: ["Kairos Bot", "Chrome", "1.0"] });
