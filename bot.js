@@ -254,29 +254,24 @@ if (text.includes('mi numero')) {
     }
 
     // ACTUALIZAR SIMPLE
-      // ACTUALIZAR SIMPLE - acepta productos nuevos
+    
+    // ACTUALIZAR SIMPLE - solo nombres
     if (esAdmin && /^actualizar\s+[123]$/.test(text)) {
       ACTUALIZANDO = text.match(/(\d)/)[1];
-      await send(`📦 Vas a actualizar el ALMACÉN ${ACTUALIZANDO}\n\nManda la lista, un producto por línea.\nPuedes mandar solo el nombre o con cantidad al final:\nPanel solar LONGi 635\nCasco de moto 2`);
+      await send(`📦 Vas a actualizar el ALMACÉN ${ACTUALIZANDO}\n\nManda la lista, un producto por línea.\nSi quieres cantidad, pon x y el número al final:\nPanel solar LONGi 635 x2\nCasco de moto x5\nSi no pones nada, lo pongo como 1.`);
       return;
     }
     if (esAdmin && ACTUALIZANDO) {
       let lineas = rawText.split('\n');
       let agregados = [];
       for (let l of lineas) {
-        let limpio = l.trim().replace(/^[✅☑️✔️•\-\* ]+/, '').trim();
+        let limpio = l.trim().replace(/^[✅☑️✔️•\-\* ]+/, '').replace(/[\u{1F000}-\u{1FAFF}]/gu, '').trim();
         if (!limpio) continue;
-        let partes = limpio.split(' ');
-        let ultimo = partes[partes.length-1];
-        let cant = parseInt(ultimo);
+        let cant = 1;
         let nombre = limpio;
-        if (!isNaN(cant) && partes.length > 1) {
-          nombre = partes.slice(0,-1).join(' ');
-        } else {
-          cant = 1;
-        }
+        let m = limpio.match(/^(.*)\s+x(\d+)\s*$/i);
+        if (m) { nombre = m[1].trim(); cant = parseInt(m[2]); }
         let clave = nombre.toUpperCase();
-        // Si es producto nuevo, lo crea solo
         if (CATALOGO[clave] === undefined) {
           CATALOGO[clave] = { nombre: nombre, precio: 0, comision: 1200, desc: nombre };
           for (let a of ["1","2","3"]) { if (ALMACENES[a][clave] === undefined) ALMACENES[a][clave] = 0; }
@@ -288,8 +283,6 @@ if (text.includes('mi numero')) {
       ACTUALIZANDO = null;
       return;
     }
-    
-
     
     if (esAdmin && text.startsWith('actualizar stock')) {
       let partes = rawText.split(' ');
