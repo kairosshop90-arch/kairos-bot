@@ -93,6 +93,20 @@ async function start() {
     const m = messages[0];
     if (!m.message || m.key.fromMe) return;
     const from = m.key.remoteJid;
+
+
+
+    // EN LOS GRUPOS NO RESPONDE, SOLO ESCUCHA A LOUIS PARA CONFIRMAR
+if (from.endsWith('@g.us')) {
+  const quienHabla = m.key.participant || m.participant || '';
+  const esLouisGrupo = quienHabla === LOUIS_JID || quienHabla === LOUIS_LID || quienHabla.includes('5356947882') || quienHabla.includes('132624865579031');
+  const mcGrupo = rawText.match(/kairos[-\s]?(\d+)\s+confirmado/i);
+  if (esLouisGrupo && mcGrupo) {
+    // deja que siga abajo a confirmar, no lo cortes
+  } else {
+    return; // en el grupo nadie mas lo activa
+  }
+}
     const nombreGestor = m.pushName || from;
     const rawText = (m.message.conversation || m.message.extendedTextMessage?.text || '').trim();
     const text = rawText.toLowerCase().trim();
