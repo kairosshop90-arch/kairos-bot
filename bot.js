@@ -1,4 +1,7 @@
 // BOT KAIROS - DESDE 0 - v1
+// Para que Render no se queje del puerto
+const http = require('http');
+http.createServer((req, res) => { res.end('KAIROS OK 👑'); }).listen(process.env.PORT || 3000);
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 
