@@ -253,6 +253,29 @@ if (text.includes('mi numero')) {
       await send(txt); return;
     }
 
+    // ACTUALIZAR SIMPLE
+    if (esAdmin && /^actualizar\s+[123]$/.test(text)) {
+      ACTUALIZANDO = text.match(/(\d)/)[1];
+      await send(`📦 Vas a actualizar el ALMACÉN ${ACTUALIZANDO}\n\nManda la lista así, una por línea:\nJ10 10\nF39 5\nPEDESTAL 3`);
+      return;
+    }
+    if (esAdmin && ACTUALIZANDO) {
+      let lineas = rawText.split('\n');
+      for (let l of lineas) {
+        let partes = l.trim().split(' ');
+        let cant = parseInt(partes[partes.length-1]);
+        let clave = partes.slice(0,-1).join(' ').toUpperCase();
+        if (ALMACENES[ACTUALIZANDO][clave] !== undefined && !isNaN(cant)) {
+          ALMACENES[ACTUALIZANDO][clave] = cant;
+        }
+      }
+      await send(`✅ Listo Louis 👑\nAlmacén ${ACTUALIZANDO} actualizado.`);
+      ACTUALIZANDO = null;
+      return;
+    }
+    
+
+    
     if (esAdmin && text.startsWith('actualizar stock')) {
       let partes = rawText.split(' ');
       let almacenNum = partes[2];
