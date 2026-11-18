@@ -1,4 +1,22 @@
 // BOT KAIROS - DESDE 0 - v1
+
+// QR VISIBLE PARA VINCULAR KAIROS
+const http = require('http');
+const QRCode = require('qrcode');
+let ULTIMO_QR = '';
+http.createServer(async (req, res) => {
+  if (req.url === '/qr') {
+    if (!ULTIMO_QR) { res.end('Aun no hay QR, espera 20 segundos y recarga. Si ya estas vinculado, no sale QR.'); return; }
+    let img = await QRCode.toDataURL(ULTIMO_QR);
+    res.end('<h1>KAIROS - Escanea para vincular 👑</h1><img src="' + img + '" style="width:350px"><br><br><a href="/qr">Recargar</a>');
+    return;
+  }
+  res.end('KAIROS OK 👑 - Ve a /qr para ver el QR');
+}).listen(process.env.PORT || 3000);
+
+
+
+
 // Para que Render no se queje del puerto
 const http = require('http');
 http.createServer((req, res) => { res.end('KAIROS OK 👑'); }).listen(process.env.PORT || 3000);
