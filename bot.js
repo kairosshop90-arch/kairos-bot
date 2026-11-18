@@ -14,8 +14,10 @@ http.createServer(async (req, res) => {
 
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const pino = require('pino');
-const ADMIN_NUM = '5356947882';
-const esLouis = from === LOUIS_JID || num === ADMIN_NUM || num === '56947882';
+
+const LOUIS_LID='132624865579031@lid';
+const esLouis=from===LOUIS_JID||from===LOUIS_LID;
+
 const GRUPO_LOCAL = '120363417801594416@g.us';
 const GRUPO_MENSAJERIA = '120363419483851412@g.us';
 let DIRECCIONES = {
