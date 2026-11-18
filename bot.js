@@ -1,4 +1,4 @@
-// KAIROS BOT - VERSION FINAL COMPLETA ARREGLADA
+// KAIROS BOT - VERSION FINAL COMPLETA ARREGLADA + ALMACEN 1 Y 2
 const http = require('http');
 const QRCode = require('qrcode');
 const fs = require('fs');
@@ -10,15 +10,7 @@ async function backup_to_github() {
     const token = process.env.GITHUB_TOKEN;
     const repo = process.env.GITHUB_REPO;
     if (!token || !repo) return;
-    const datos = {
-      catalogo: CATALOGO,
-      admins: [...ADMIN_OK],
-      agotados: [...AGOTADOS],
-      gestores: GESTORES,
-      vales: VALES,
-      contador: CONTADOR,
-      fecha: new Date().toISOString()
-    };
+    const datos = { catalogo: CATALOGO, admins: [...ADMIN_OK], agotados: [...AGOTADOS], gestores: GESTORES, vales: VALES, contador: CONTADOR, fecha: new Date().toISOString() };
     const content = Buffer.from(JSON.stringify(datos, null, 2)).toString('base64');
     const url = `https://api.github.com/repos/${repo}/contents/kairos-backup.json`;
     const headers = { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'kairos-bot' };
@@ -58,7 +50,6 @@ const DIRECCIONES = {
   3: 'En espera de direccion'
 };
 
-// ===== GUARDADO PARA QUE NO SE BORRE AL REINICIAR =====
 let CATALOGO = {};
 let AGOTADOS = new Set();
 let ADMIN_OK = new Set();
@@ -81,30 +72,87 @@ let VALES = {};
 let CONTADOR = 0;
 let ACTUALIZANDO = {};
 let PIDIENDO_NOMBRE = new Set();
-let TASA_USD = 450, TASA_EUR = 480;
+
+// ===== TASAS - ARREGLADO: A1 +5, A2 +10, EUR = USD =====
+let TASA_BASE = 935; // Toque USD sin extra
+let TASA_A1 = 940, TASA_A2 = 945;
+let TASA_USD = 945, TASA_EUR = 945; // compatibilidad, EUR = USD
 
 async function actualizarTasa() {
-  try { const r = await fetch('https://api.eltoque.com/v1/trmi'); const j = await r.json(); if (j?.tasa) TASA_USD = Math.round(j.tasa) + 10; } catch(e) {}
-  try { const r2 = await fetch('https://api.eltoque.com/v1/trmi?moneda=EUR'); const j2 = await r2.json(); if (j2?.tasa) TASA_EUR = Math.round(j2.tasa) + 10; } catch(e) {}
-  console.log('Tasa actualizada: USD ' + TASA_USD + ' / EUR ' + TASA_EUR);
+  try { const r = await fetch('https://api.eltoque.com/v1/trmi'); const j = await r.json(); if (j?.tasa) TASA_BASE = Math.round(j.tasa); } catch(e) {}
+  TASA_A1 = TASA_BASE + 5;
+  TASA_A2 = TASA_BASE + 10;
+  TASA_USD = TASA_A2; TASA_EUR = TASA_A2; // por defecto A2
+  console.log('Tasa actualizada: Base ' + TASA_BASE + ' / A1 ' + TASA_A1 + ' / A2 ' + TASA_A2);
 }
 actualizarTasa();
 setInterval(actualizarTasa, 15 * 60 * 1000);
+function tasaPorAlmacen(a){ return String(a)==='1' ? TASA_A1 : TASA_A2; }
 
-const MENSAJERIA = [
-  ['SAN MIGUEL', 1000], ['GUANABACOA', 2000], ['REGLA', 2000], ['CENTRO HABANA', 2000],
-  ['VEDADO', 2000], ['PLAYA', 3000], ['COTORRO', 2500], ['DIEZ DE OCTUBRE', 2000],
-  ['CERRO', 2000], ['MARIANAO', 3500], ['GUANABO', 6000], ['ALAMAR', 2500],
-  ['COJIMAR', 2500], ['VIBORA', 2000], ['LAWTON', 2000], ['ARROYO NARANJO', 2500],
-  ['BOYERO', 2500], ['LA LISA', 3500], ['HABANA VIEJA', 2000], ['PLAZA', 2000]
-];
-function buscarMensajeria(t) {
-  t = t.toUpperCase(); let mejor = null;
-  for (const [z, p] of MENSAJERIA) { if (t.includes(z)) { if (!mejor || z.length > mejor[0].length) mejor = [z, p]; } }
+// ===== MENSAJERIA ALMACEN 1 - COMPLETA =====
+const MENSAJERIA_A1 = {
+  "san miguel del padron":1500,"jacomino":1500,"diezmero":1500,"san francisco de paula":1500,"virgen del camino":1500,"juanelo":1500,"la rosalia":1500,"la fernanda":1500,"barrio obrero":1500,"monterrey":1500,"vista hermosa":1500,"san matias":1500,"la cuevita":1500,"alturas de luyano":1500,"rocafort":1500,"california":1500,
+  "carretera vieja":1800,"nalon":1800,"naranjo":1800,"la hata":1800,"mikito":1800,"roble":1800,"d'beche":1800,"chibas":1800,"villa i":1800,"villa ii":1800,"mañana":1800,"habana nueva":1800,"reparto escala":2100,"policlinico a. ortiz":2100,"cementerio judio":2100,"paradero":2100,"minas":2300,"barreras":2300,"peñalver":3100,"bacuranao":3100,"santa fe":3100,
+  "loma-modelo":1900,"guaicanamar":1900,"casa blanca":2400,
+  "centro del cotorro":2100,"loteria":2100,"san pedro":2100,"magdalena-torriente":2400,"alberro":2400,"cuatro caminos":3100,"santa maria del rosario":3600,
+  "monaco":1900,"luyano":1900,"vibora":1900,"sta. catalina":1900,"santos suarez":1900,"sevillano":1900,"lawton":1900,"vista alegre":1900,"jesus del monte":1900,"tamarindo":1900,"acosta":1900,
+  "mantilla":1900,"parraga":1900,"poey":1900,"santa amalia":1900,"la palma":1900,"vibora park":1900,"callejas":1900,"la güinera":2100,"los pinos":2100,"reparto electrico":2100,"calvario":2100,"fraternidad":2100,"las guasimas":3400,"managua":3900,
+  "cayo hueso":1900,"dragones":1900,"barrio chino":1900,"los sitios":1900,"pueblo nuevo":1900,"colon":1900,"belen":1900,"san isidro":1900,"prado":1900,"catedral":1900,"tallapiedra":1900,"centro habana":1900,"habana vieja":1900,
+  "latinoamericano":1900,"pilar-atares":1900,"palatino":1900,"canal":1900,"las cañas":1900,"casino deportivo":1900,"santa catalina":1900,"ayestaran":1900,"cerro":1900,
+  "vedado":2100,"nuevo vedado":2100,"rampa":2100,"principe":2100,"puentes grandes":2100,"el carmelo":2100,"alturas del vedado":2100,"plaza":2100,
+  "pogolotti":2600,"los quemados":2600,"los pocitos":2600,"santa felicia":2600,"el palmar":2600,"zamora-coco solo":2600,"cai los angeles":2600,"marianao":2600,
+  "alturas de la lisa":2600,"arimao":2600,"la coronela":2600,"versalles":2600,"balcon":2600,"arroyo arenas":4300,"san agustin":4300,"valle grande":4300,"bello 26":4300,"cinco palmas":4300,"el cano":4300,"la novia del mediodia":4300,"punta brava":5900,"reparto barbosa":5900,"la lisa":2600,
+  "miramar":2400,"almendares":2400,"kohly":2400,"la ceiba":2400,"buenavista":2400,"la sierra":2400,"querejeta":2400,"nautico":2900,"cubanacan":2900,"atabey":2900,"siboney":2900,"flores":2900,"jaimanitas":6600,"santa fe playa":6600,"playa baracoa":7600,"playa":2400,
+  "camilo cienfuegos":2500,"bahia":2500,"villa panamericana":2500,"cojimar":2500,"alamar":2500,"antonio guiteras":2500,"guanabo":4000,"boca ciega":4000,"campo florido":4400,"santa cruz del norte":8100,"san jose de las lajas":6300,
+  "ponce":2600,"trigal":2600,"la fortuna":2600,"aldabo":2600,"altahabana":2600,"embil":2600,"miraflores":2600,"capdevila":2600,"reloj club":2600,"pte. 100 y boyeros":2600,"armada":2600,"cujae":3600,"berenguer":3600,"fontanar":3600,"rio verde":3600,"mazorra":3600,"abel santamaria":4100,"1.º de mayo":4100,"rancho boyeros":4100,"wajay":4100,"el chico":4100,"baluarte":4100,"aeropuerto":4100,"lugardita":4100,"pediatrico":4100,"mulgoba":4400,"santiago de las vegas":4400,"nuevo santiago":4400,"boyeros":2600,
+  "melena del sur":7600,"san antonio de los baños":7600,"güines":7600,"batabano":7600,"güira de melena":10600,"madruga":13600
+};
+// ===== MENSAJERIA ALMACEN 2 - COMPLETA =====
+const MENSAJERIA_A2 = {
+  "san miguel":1000,"san miguel del padron":1000,"san miguel entrincado":1500,"guanabacoa":2000,"via blanca":2000,"debeche":2000,"reparto mañana":2000,"centro guanabacoa":2000,"roble":2500,"jata":2500,"mikito":2500,"naranjo":2500,"puente de santa fe":3000,"barreras":4000,"minas":4000,"campo florido":5000,
+  "regla":2000,"casa blanca":2500,"bahia":2500,"cojimar":2500,"villa panamericana":2500,"alamar":2500,"alamar zona 17":3000,"alamar zona 18":3000,"alamar micro x":3000,"camilo":2500,"camilo cienfuegos":2500,
+  "cotorro":2500,"cotorro centro":2500,"cotorro paradero":3000,"santa maria del rosario":3500,"al berro":3500,"loma de tierra":3500,"cuatro caminos":4000,
+  "diez de octubre":2000,"vibora":2000,"monaco":2000,"santo suarez":2000,"sevillano":2000,"lawton":2000,
+  "arroyo naranjo":2500,"mantilla":2500,"parraga":2500,"palma":2500,"la palma":2500,"puente de calabazar":3000,"reparto electrico":2500,"managua":4000,"las guasimas":3500,
+  "centro habana":2000,"habana vieja":2000,"cerro":2000,"casino deportivo":2500,"ayestaran":2500,"boyero":2500,"camagüey":2500,
+  "vedado":2000,"plaza":2000,"playa":3000,"playa antes del paradero":3000,"playa despues del paradero":3500,"jaimanita":4000,"jaimanitas":4000,"santa fe":4500,"santa fe playa":4500,"marianao":3500,
+  "la lisa":3500,"la lisa hasta 222":3500,"la lisa despues de 222":4000,"alturas de la lisa":3500,"punta brava":5000,"valle grande":5000,"arroyo arena":4500,"arroyo arenas":4500,"san agustin":4000,"guanabo":6000,
+  "cien":3000,"aldabo":3000,"cien y aldabo":3000,"alta habana":3000,"altahabana":3000,"boyeros":4000,"santiago de las vegas":4500,"wajay":5000,"el chico":5000
+};
+function buscarMensajeriaTabla(tabla, t){
+  t = t.toLowerCase(); let mejor=null;
+  for (const z in tabla){ if (t.includes(z)){ if(!mejor || z.length>mejor[0].length) mejor=[z, tabla[z]]; } }
   return mejor;
 }
 function esGrande(n) { n = n.toUpperCase(); return n.includes('NEVERA') || n.includes('FRIO') || n.includes('FRÍO') || n.includes('PLANTA') || n.includes('EXHIBIDORA') || n.includes('TV'); }
+function esTVoBici(n){ n=n.toUpperCase(); return n.includes('TV') || n.includes('BICICLETA') || n.includes('SMART'); }
+function tipoA2(n){ n=n.toUpperCase(); if(n.includes('EXHIBIDORA')) return 'exhibidora'; if(n.includes('NEVERA 11')||n.includes('NEVERA 16')) return 'nevera'; if(n.includes('FRIO')||n.includes('FRÍO')){ const m=n.match(/(\d+)\s*PIES/); if(m && parseInt(m[1])>=15) return 'frio15'; return 'grande'; } if(esGrande(n)) return 'grande'; return 'normal'; }
+
+function calcularMensajeria(almacen, direccion, productos){
+  const tabla = String(almacen)==='1' ? MENSAJERIA_A1 : MENSAJERIA_A2;
+  const enc = buscarMensajeriaTabla(tabla, direccion);
+  if(!enc) return { costo:0, zona:'?', detalle:'No encontrada - preguntar' };
+  let base = enc[1]; let total = base; let detalle = 'Base '+enc[0]+': $'+base;
+  let cant = productos.reduce((s,p)=>s+p.cant,0);
+  if(String(almacen)==='1'){
+    if(cant>=4 && cant<=6){ total+=1000; detalle+=' + $1,000 (4-6 art)'; }
+    if(cant>6){ total=base*2; detalle+=' x2 (>6 art)'; }
+    let hayGrande = productos.some(p=>esGrande(p.nombre));
+    let hayTV = productos.some(p=>esTVoBici(p.nombre));
+    if(hayGrande){ total+=1000; detalle+=' + $1,000 grande'; }
+    if(hayTV){ total+=500; detalle+=' + $500 TV/Bici'; }
+  } else {
+    let tipos = productos.map(p=>tipoA2(p.nombre));
+    if(tipos.includes('frio15') && productos.length===1 && cant===1){ total=base+800; detalle+=' + $800 Frío 15+'; return {costo:total, zona:enc[0], detalle}; }
+    let duplicar = cant>=3 || tipos.includes('grande') || tipos.includes('nevera') || tipos.includes('exhibidora');
+    if(duplicar){ total=base*2; detalle+=' x2 (grande / 3+ eq)'; }
+    if(tipos.includes('nevera')){ total+=500; detalle+=' + $500 Nevera 11/16'; }
+    if(tipos.includes('exhibidora')){ total+=1000; detalle+=' + $1,000 Exhibidora'; }
+  }
+  return {costo:total, zona:enc[0], detalle};
+}
 function comisionDe(prods) { let t = 0; for (const p of prods) t += esGrande(p.nombre) ? 2500 : 1200; return t; }
+function totalMNProductos(prods){ return prods.reduce((s,p)=> s + p.precioUSD * p.cant * tasaPorAlmacen(p.almacen), 0); }
 
 async function start() {
   const { state, saveCreds } = await useMultiFileAuthState('sesion-kairos');
@@ -123,17 +171,11 @@ async function start() {
     if (!m.message || m.key.fromMe) return;
     const from = m.key.remoteJid;
     const rawText = (m.message.conversation || m.message.extendedTextMessage?.text || '').trim();
-
-    // EN LOS GRUPOS NO RESPONDE, SOLO ESCUCHA A LOUIS PARA CONFIRMAR
     if (from.endsWith('@g.us')) {
       const quienHabla = m.key.participant || m.participant || '';
       const esLouisGrupo = quienHabla === LOUIS_JID || quienHabla === LOUIS_LID || quienHabla.includes('5356947882') || quienHabla.includes('132624865579031');
       const mcGrupo = rawText.match(/kairos[-\s]?(\d+)\s+confirmado/i);
-      if (esLouisGrupo && mcGrupo) {
-        // deja que siga abajo a confirmar, no lo cortes
-      } else {
-        return;
-      }
+      if (esLouisGrupo && mcGrupo) {} else { return; }
     }
     const nombreGestor = m.pushName || from;
     const text = rawText.toLowerCase().trim();
@@ -143,101 +185,61 @@ async function start() {
 
     if (text === 'mi id') { await send('Tu ID es: ' + from); return; }
     if (text === 'cancelar' || text === 'reiniciar' || text === 'menu') { delete PEDIDOS[from]; delete ACTUALIZANDO[from]; PIDIENDO_NOMBRE.delete(from); await send('Listo, borre lo que estabas haciendo. Escribe *catalogo*'); return; }
-    if (text === 'soy admin kairos123') {
-      ADMIN_OK.add(from); guardarTodo();
-      await send('Bienvenido Admin KAIROS.\nYa quedaste guardado, no tienes que volver a poner esto.\nComandos: actualizar almacen 1, quitar producto X, agotado X, ver catalogo');
-      return;
-    }
-    if (text === 'tasa' || text === 'toque') { await send('El Toque +10\nUSD: ' + TASA_USD + ' MN\nEUR: ' + TASA_EUR + ' MN'); return; }
+    if (text === 'soy admin kairos123') { ADMIN_OK.add(from); guardarTodo(); await send('Bienvenido Admin KAIROS.\nYa quedaste guardado, no tienes que volver a poner esto.\nComandos: actualizar almacen 1, quitar producto X, agotado X, ver catalogo'); return; }
+    if (text === 'tasa' || text === 'toque') { await send('El Toque base: '+TASA_BASE+'\nAlmacén 1 (Toque +5): '+TASA_A1+' MN\nAlmacén 2 (Toque +10): '+TASA_A2+' MN\nEUR = USD mismo número'); return; }
 
-    if (!esAdmin && !GESTORES[from] && !PIDIENDO_NOMBRE.has(from)) {
-      PIDIENDO_NOMBRE.add(from);
-      await send('Hola, bienvenido a KAIROS.\nEres nuevo, dime tu nombre completo para guardarte.\nEj: Maria Lopez');
-      return;
-    }
+    if (!esAdmin && !GESTORES[from] && !PIDIENDO_NOMBRE.has(from)) { PIDIENDO_NOMBRE.add(from); await send('Hola, bienvenido a KAIROS.\nEres nuevo, dime tu nombre completo para guardarte.\nEj: Maria Lopez'); return; }
     if (!esAdmin && PIDIENDO_NOMBRE.has(from)) {
       const nombre = rawText.trim();
       if (nombre.length < 3 || nombre.toLowerCase() === 'hola' || nombre.toLowerCase() === 'catalogo') { await send('Dime tu nombre completo, ej: Maria Lopez'); return; }
-      GESTORES[from] = nombre;
-      PIDIENDO_NOMBRE.delete(from);
-      guardarTodo();
-      await send('Perfecto ' + nombre + ', ya quedaste guardado.\nCada vale que mandes saldra con tu nombre.\n\nEscribe: *catalogo*');
-      return;
+      GESTORES[from] = nombre; PIDIENDO_NOMBRE.delete(from); guardarTodo();
+      await send('Perfecto ' + nombre + ', ya quedaste guardado.\nCada vale que mandes saldra con tu nombre.\n\nEscribe: *catalogo*'); return;
     }
-
     if (esAdmin && text.includes('actualizar')) {
-      let num = '1';
-      if (text.includes('2')) num = '2';
-      if (text.includes('3')) num = '3';
-      ACTUALIZANDO[from] = num;
-      delete PEDIDOS[from];
-      await send('Vas a actualizar ALMACEN ' + num + '\nManda la lista ahora, un producto por linea.\nEj: Arrocera Estelectric -- 27');
-      return;
+      let num = '1'; if (text.includes('2')) num = '2'; if (text.includes('3')) num = '3';
+      ACTUALIZANDO[from] = num; delete PEDIDOS[from];
+      await send('Vas a actualizar ALMACEN ' + num + '\nManda la lista ahora, un producto por linea.\nEj: Arrocera Estelectric -- 27'); return;
     }
     if (esAdmin && ACTUALIZANDO[from]) {
       const miAlmacen = ACTUALIZANDO[from];
       for (const k in CATALOGO) { if (CATALOGO[k].almacen === miAlmacen) delete CATALOGO[k]; }
       const ag = [];
       for (const l of rawText.split('\n')) {
-        let linea = l.trim();
-        if (!linea) continue;
-        linea = linea.replace(/^[☑️✅✔️•\-\* ]+/u, '').trim();
-        if (!linea) continue;
+        let linea = l.trim(); if (!linea) continue;
+        linea = linea.replace(/^[☑️✅✔️•\-\* ]+/u, '').trim(); if (!linea) continue;
         linea = linea.replace(/\(.*?USD.*?\)/gi, '').trim();
         const mPrecio = linea.match(/(.+?)[\s\-–—]*(\d+(\.\d+)?)\s*(USD|usd)?\s*$/);
         if (!mPrecio) continue;
         let nom = mPrecio[1].trim().replace(/[-–—\s]+$/,'').trim();
-        let pre = parseFloat(mPrecio[2]);
-        if (!nom || !pre) continue;
-        const cl = nom.toUpperCase();
-        CATALOGO[cl] = { nombre: nom, precioUSD: pre, almacen: miAlmacen };
-        AGOTADOS.delete(cl);
-        ag.push(nom + ' - ' + pre + ' USD');
+        let pre = parseFloat(mPrecio[2]); if (!nom || !pre) continue;
+        const cl = nom.toUpperCase(); CATALOGO[cl] = { nombre: nom, precioUSD: pre, almacen: miAlmacen }; AGOTADOS.delete(cl); ag.push(nom + ' - ' + pre + ' USD');
       }
-      guardarTodo();
-      await send('Listo. Almacen ' + miAlmacen + ' actualizado.\n\n' + ag.join('\n'));
-      delete ACTUALIZANDO[from];
-      return;
+      guardarTodo(); await send('Listo. Almacen ' + miAlmacen + ' actualizado.\n\n' + ag.join('\n')); delete ACTUALIZANDO[from]; return;
     }
-    if (esAdmin && text.startsWith('quitar producto ')) {
-      const n = rawText.substring(15).trim().toUpperCase();
-      if (CATALOGO[n]) { delete CATALOGO[n]; guardarTodo(); await send('Quitado: ' + n); } else await send('No encontre ese producto.');
-      return;
-    }
+    if (esAdmin && text.startsWith('quitar producto ')) { const n = rawText.substring(15).trim().toUpperCase(); if (CATALOGO[n]) { delete CATALOGO[n]; guardarTodo(); await send('Quitado: ' + n); } else await send('No encontre ese producto.'); return; }
     if (esAdmin && text.startsWith('agotado ')) { const n = rawText.substring(8).trim().toUpperCase(); AGOTADOS.add(n); guardarTodo(); await send(n + ' marcado AGOTADO.'); return; }
     if (esAdmin && text === 'ver catalogo') {
       let t = 'CATALOGO KAIROS\n\n';
       for (const a of ['1','2','3']) { t += '--- ALMACEN ' + a + ' ---\n'; for (const k in CATALOGO) { if (CATALOGO[k].almacen === a) t += CATALOGO[k].nombre + ' - ' + CATALOGO[k].precioUSD + ' USD' + (AGOTADOS.has(k) ? ' AGOTADO' : '') + '\n'; } t += '\n'; }
       await send(t); return;
     }
-
     const mc = rawText.match(/kairos[-\s]?(\d+)\s+confirmado/i);
     if (esLouis && mc) {
-      const nv = parseInt(mc[1], 10);
-      const v = VALES[nv]; if (!v) { await send('No encontre vale ' + nv); return; }
+      const nv = parseInt(mc[1], 10); const v = VALES[nv]; if (!v) { await send('No encontre vale ' + nv); return; }
       v.estado = 'confirmado';
-      const totalMNFinal = v.metodoPago === 'EUR' ? v.totalUSD * TASA_EUR : v.totalUSD * TASA_USD;
-      let res = 'VALE KAIROS-' + String(nv).padStart(3, '0') + ' CONFIRMADO\n\nGestor: ' + v.gestorNombre + '\nCliente: ' + v.cliente + '\nTelefono cliente: ' + v.telefonoCliente + '\nPago: ' + v.metodoPago + '\nProductos:\n' + v.productos.map(p => '- ' + p.nombre + ' x' + p.cant + ' = ' + (p.cant * p.precioUSD) + ' USD').join('\n') + '\nTotal: ' + v.totalUSD + ' ' + v.metodoPago + '\nTotal MN ref: ' + totalMNFinal + ' MN (Toque +10)\nMensajeria: ' + v.costoMensajeria + ' MN';
-      if (v.tipo === 'recogida') {
-        res += '\nRecogida en: ' + DIRECCIONES[v.almacen];
-        await sock.sendMessage(GRUPO_LOCAL, { text: res });
-        await sock.sendMessage(v.gestor, { text: 'Tu vale KAIROS-' + String(nv).padStart(3, '0') + ' CONFIRMADO. Recoger en: ' + DIRECCIONES[v.almacen] });
-      } else {
-        res += '\nMensajeria a: ' + v.direccion;
-        await sock.sendMessage(GRUPO_MENSAJERIA, { text: res });
-        await sock.sendMessage(v.gestor, { text: 'Tu vale KAIROS-' + String(nv).padStart(3, '0') + ' CONFIRMADO. Va por mensajeria.' });
-      }
+      const totalMNFinal = totalMNProductos(v.productos);
+      let res = 'VALE KAIROS-' + String(nv).padStart(3, '0') + ' CONFIRMADO\n\nGestor: ' + v.gestorNombre + '\nCliente: ' + v.cliente + '\nTelefono cliente: ' + v.telefonoCliente + '\nPago: ' + v.metodoPago + '\nProductos:\n' + v.productos.map(p => '- ' + p.nombre + ' x' + p.cant + ' = ' + (p.cant * p.precioUSD) + ' USD (A'+p.almacen+')').join('\n') + '\nTotal: ' + v.totalUSD + ' ' + v.metodoPago + '\nTotal MN ref: ' + totalMNFinal.toLocaleString() + ' MN\nMensajeria: ' + v.costoMensajeria + ' MN';
+      if (v.tipo === 'recogida') { res += '\nRecogida en: ' + DIRECCIONES[v.almacen]; await sock.sendMessage(GRUPO_LOCAL, { text: res }); await sock.sendMessage(v.gestor, { text: 'Tu vale KAIROS-' + String(nv).padStart(3, '0') + ' CONFIRMADO. Recoger en: ' + DIRECCIONES[v.almacen] }); }
+      else { res += '\nMensajeria a: ' + v.direccion; await sock.sendMessage(GRUPO_MENSAJERIA, { text: res }); await sock.sendMessage(v.gestor, { text: 'Tu vale KAIROS-' + String(nv).padStart(3, '0') + ' CONFIRMADO. Va por mensajeria.' }); }
       await send('Vale ' + nv + ' enviado al grupo.'); return;
     }
     const me = rawText.match(/vale\s+kairos[-\s]?(\d+)\s+entregado/i);
     if (esLouis && me) {
-      const nv = parseInt(me[1], 10);
-      const v = VALES[nv]; if (!v) { await send('No encontre vale ' + nv); return; }
+      const nv = parseInt(me[1], 10); const v = VALES[nv]; if (!v) { await send('No encontre vale ' + nv); return; }
       const com = comisionDe(v.productos);
       await sock.sendMessage(v.gestor, { text: 'VALE KAIROS-' + String(nv).padStart(3, '0') + ' ENTREGADO. Tu comision: ' + com + ' MN' });
       await send('Entrega notificada. Comision: ' + com); return;
     }
-
     if (text.includes('hola') || text.includes('buenas') || text.includes('bendecido')) { delete PEDIDOS[from]; await send('Hola, bendecido dia, bienvenido a KAIROS. Soy el gestor de KAIROS.\n\nEscribe: *catalogo*'); return; }
     if (text === 'catálogo' || text === 'catalogo') {
       let t = 'CATALOGO KAIROS\n\n';
@@ -250,94 +252,5 @@ async function start() {
       }
       t += 'Escribe el numero o el nombre del producto que quieres.'; await send(t); return;
     }
-
     if (!PEDIDOS[from]) {
-      let productoEncontrado = null;
-      if (/^[0-9]+$/.test(text.trim())) {
-        const lista = Object.values(CATALOGO);
-        const idx = parseInt(text.trim()) - 1;
-        if (lista[idx]) productoEncontrado = lista[idx];
-      } else {
-        const clave = text.toUpperCase();
-        if (CATALOGO[clave]) productoEncontrado = CATALOGO[clave];
-        else { for (const k in CATALOGO) { if (k.includes(clave) || clave.includes(k.split(' ')[0])) { productoEncontrado = CATALOGO[k]; break; } } }
-      }
-      if (productoEncontrado) {
-        const claveReal = productoEncontrado.nombre.toUpperCase();
-        if (AGOTADOS.has(claveReal)) { await send('Ese producto esta AGOTADO.'); return; }
-        PEDIDOS[from] = { gestor: from, gestorNombre: GESTORES[from] || nombreGestor, productos: [{ nombre: productoEncontrado.nombre, precioUSD: productoEncontrado.precioUSD, cant: 0, almacen: productoEncontrado.almacen }], paso: 'cantidad', actual: 0 };
-        await send(productoEncontrado.nombre + ' - ' + productoEncontrado.precioUSD + ' USD\n\nCuantos quieres? Ej: 2'); return;
-      }
-    }
-
-    const ped = PEDIDOS[from];
-    if (ped) {
-      if (ped.paso === 'cantidad') {
-        const cant = parseInt(text); if (isNaN(cant) || cant <= 0) { await send('Pon un numero, ej: 2'); return; }
-        ped.productos[ped.actual].cant = cant; ped.paso = 'otra'; await send('Quieres otra cosa? Escribe *SI* o *NO*'); return;
-      }
-      if (ped.paso === 'otra') {
-        if (text === 'no') { ped.paso = 'datos'; await send('Perfecto. Dime:\nNombre Apellido Carnet\nEj: Juan Perez 12345678901'); return; }
-        if (text.startsWith('si')) { ped.paso = 'otro_nombre'; await send('Dime el nombre o numero del otro producto:'); return; }
-        await send('Escribe SI o NO'); return;
-      }
-      if (ped.paso === 'otro_nombre') {
-        let enc = null;
-        if (/^[0-9]+$/.test(text.trim())) { const lista = Object.values(CATALOGO); enc = lista[parseInt(text.trim()) - 1]; }
-        else { const clave = text.toUpperCase(); if (CATALOGO[clave]) enc = CATALOGO[clave]; else { for (const k in CATALOGO) { if (k.includes(clave)) { enc = CATALOGO[k]; break; } } } }
-        if (enc) { ped.productos.push({ nombre: enc.nombre, precioUSD: enc.precioUSD, cant: 0, almacen: enc.almacen }); ped.actual = ped.productos.length - 1; ped.paso = 'cantidad'; await send(enc.nombre + ' - ' + enc.precioUSD + ' USD\nCuantos?'); }
-        else await send('No encontre ese producto. Escribe el nombre o numero exacto.');
-        return;
-      }
-      if (ped.paso === 'datos') { ped.cliente = rawText; ped.paso = 'telefono'; await send('Perfecto. Ahora dime el TELEFONO del cliente para que la mensajeria lo llame.\nEj: 5351234567'); return; }
-      if (ped.paso === 'telefono') {
-        ped.telefonoCliente = rawText;
-        ped.paso = 'pago';
-        const totalUSD = ped.productos.reduce((s, p) => s + p.precioUSD * p.cant, 0);
-        const totalEUR = totalUSD;
-        const totalMN = totalUSD * TASA_USD;
-        let resumen = 'RESUMEN DE TU PEDIDO\n\n';
-        ped.productos.forEach(p => { resumen += '- ' + p.nombre + ' x' + p.cant + ' = ' + (p.precioUSD * p.cant) + ' USD\n'; });
-        resumen += '\nTotal a pagar, escoge como vas a pagar:\n';
-        resumen += '1. USD: ' + totalUSD + ' USD\n';
-        resumen += '2. EUR: ' + totalEUR + ' EUR\n';
-        resumen += '3. MN: ' + totalMN + ' MN (Toque +10)\n\n';
-        resumen += 'Escribe: 1, 2 o 3';
-        await send(resumen);
-        return;
-      }
-      if (ped.paso === 'pago') {
-        if (text === '1' || text.includes('usd') || text.includes('dolar')) ped.metodoPago = 'USD';
-        else if (text === '2' || text.includes('eur')) ped.metodoPago = 'EUR';
-        else if (text === '3' || text.includes('mn') || text.includes('cup') || text.includes('peso')) ped.metodoPago = 'MN';
-        else { await send('Escribe: 1 para USD, 2 para EUR, 3 para MN'); return; }
-        ped.paso = 'tipo';
-        await send('Pago: ' + ped.metodoPago + '\n\nMensajeria o recogida?\nEscribe: *mensajeria* o *recogida*');
-        return;
-      }
-      if (ped.paso === 'tipo') {
-        if (text.includes('recogida')) {
-          CONTADOR++; const totalUSD = ped.productos.reduce((s, p) => s + p.precioUSD * p.cant, 0);
-          const totalMNFinal = ped.metodoPago === 'EUR' ? totalUSD * TASA_EUR : totalUSD * TASA_USD;
-          const vale = { numero: CONTADOR, gestor: from, gestorNombre: ped.gestorNombre || GESTORES[from] || nombreGestor, cliente: ped.cliente, telefonoCliente: ped.telefonoCliente, metodoPago: ped.metodoPago, productos: ped.productos, tipo: 'recogida', almacen: ped.productos[0].almacen, totalUSD, costoMensajeria: 0 };
-          VALES[CONTADOR] = vale; delete PEDIDOS[from];
-          const tv = 'VALE KAIROS-' + String(CONTADOR).padStart(3, '0') + ' (PENDIENTE)\n\nGestor: ' + vale.gestorNombre + '\nCliente: ' + vale.cliente + '\nTelefono cliente: ' + vale.telefonoCliente + '\nPago: ' + vale.metodoPago + '\nProductos:\n' + vale.productos.map(p => '- ' + p.nombre + ' x' + p.cant + ' = ' + (p.precioUSD * p.cant) + ' USD').join('\n') + '\n\nTotal: ' + totalUSD + ' ' + vale.metodoPago + '\nTotal MN ref: ' + totalMNFinal + ' MN (Toque +10)\n\nRecogida en:\n' + DIRECCIONES[vale.almacen] + '\n\nLouis pon: kairos-' + String(CONTADOR).padStart(3, '0') + ' confirmado';
-          await sock.sendMessage(LOUIS_LID, { text: tv }); await send('Vale creado y enviado a Louis.'); return;
-        }
-        if (text.includes('mensajer')) { ped.paso = 'direccion'; await send('Dime la direccion completa y municipio.\nEj: Calle 10 #123, Centro Habana'); return; }
-        await send('Escribe: mensajeria o recogida'); return;
-      }
-      if (ped.paso === 'direccion') {
-        ped.direccion = rawText; const enc = buscarMensajeria(rawText); let costo = enc ? enc[1] : 0;
-        const totalCant = ped.productos.reduce((s, p) => s + p.cant, 0); if (totalCant >= 3) costo = costo * 2;
-        ped.costoMensajeria = costo; CONTADOR++; const totalUSD = ped.productos.reduce((s, p) => s + p.precioUSD * p.cant, 0);
-        const totalMNFinal = ped.metodoPago === 'EUR' ? totalUSD * TASA_EUR : totalUSD * TASA_USD;
-        const vale = { numero: CONTADOR, gestor: from, gestorNombre: ped.gestorNombre || GESTORES[from] || nombreGestor, cliente: ped.cliente, telefonoCliente: ped.telefonoCliente, metodoPago: ped.metodoPago, productos: ped.productos, tipo: 'mensajeria', direccion: ped.direccion, totalUSD, costoMensajeria: costo };
-        VALES[CONTADOR] = vale; delete PEDIDOS[from];
-        const tv = 'VALE KAIROS-' + String(CONTADOR).padStart(3, '0') +' confirmado';
-        await sock.sendMessage(LOUIS_LID, { text: tv }); await send('Vale creado. Mensajeria: ' + costo + ' MN. Enviado a Louis.'); return;
-      }
-    }
-  });
-}
-start();
+      let productoEncontrado
