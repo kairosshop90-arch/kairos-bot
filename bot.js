@@ -163,7 +163,7 @@ function buscarProducto(nombre) {
   return null;
 }
 
-uasync function start() {
+async function start() {
   const { version } = await fetchLatestBaileysVersion();
   const { state, saveCreds } = await useMultiFileAuthState('auth_info');
   const sock = makeWASocket({ version, logger: pino({ level: 'silent' }), auth: state, browser: ["Kairos Bot", "Chrome", "1.0"] });
