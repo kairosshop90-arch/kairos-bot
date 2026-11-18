@@ -1,3 +1,12 @@
+// Para que Render no de error de puerto
+const http = require('http');
+const PORT = process.env.PORT || 10000;
+http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('KAIROS BOT ACTIVO ✅');
+}).listen(PORT, () => console.log('Puerto abierto en ' + PORT));
+
+
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 
