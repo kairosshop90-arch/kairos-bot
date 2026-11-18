@@ -30,9 +30,9 @@ const GRUPO_RECOGIDA = "120363417801594416@g.us";
 
 
 let ALMACENES = {
-  "1": [],
-  "2": [],
-  "3": []
+  "1": { "J10": 0, "F39": 0, "F22": 0, "F6": 0, "BEE F6": 0, "PEDESTAL": 0, "NEVERA": 0, "FRIO": 0, "EXHIBIDORA": 0, "TV": 0, "LAVADORA": 0, "COLCHON": 0 },
+  "2": { "J10": 0, "F39": 0, "F22": 0, "F6": 0, "BEE F6": 0, "PEDESTAL": 0, "NEVERA": 0, "FRIO": 0, "EXHIBIDORA": 0, "TV": 0, "LAVADORA": 0, "COLCHON": 0 },
+  "3": { "J10": 0, "F39": 0, "F22": 0, "F6": 0, "BEE F6": 0, "PEDESTAL": 0, "NEVERA": 0, "FRIO": 0, "EXHIBIDORA": 0, "TV": 0, "LAVADORA": 0, "COLCHON": 0 }
 };
 let ACTUALIZANDO = null;
 
