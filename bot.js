@@ -253,4 +253,78 @@ async function start() {
       t += 'Escribe el numero o el nombre del producto que quieres.'; await send(t); return;
     }
     if (!PEDIDOS[from]) {
-      let productoEncontrado
+      let productoEncontrado= null;
+      if (/^[0-9]+$/.test(text.trim())) { const lista = Object.values(CATALOGO); const idx = parseInt(text.trim()) - 1; if (lista[idx]) productoEncontrado = lista[idx]; }
+      else { const clave = text.toUpperCase(); if (CATALOGO[clave]) productoEncontrado = CATALOGO[clave]; else { for (const k in CATALOGO) { if (k.includes(clave) || clave.includes(k.split(' ')[0])) { productoEncontrado = CATALOGO[k]; break; } } } }
+      if (productoEncontrado) {
+        const claveReal = productoEncontrado.nombre.toUpperCase();
+        if (AGOTADOS.has(claveReal)) { await send('Ese producto esta AGOTADO.'); return; }
+        PEDIDOS[from] = { gestor: from, gestorNombre: GESTORES[from] || nombreGestor, productos: [{ nombre: productoEncontrado.nombre, precioUSD: productoEncontrado.precioUSD, cant: 0, almacen: productoEncontrado.almacen }], paso: 'cantidad', actual: 0 };
+        await send(productoEncontrado.nombre + ' - ' + productoEncontrado.precioUSD + ' USD\n\nCuantos quieres? Ej: 2'); return;
+      }
+    }
+    const ped = PEDIDOS[from];
+    if (ped) {
+      if (ped.paso === 'cantidad') { const cant = parseInt(text); if (isNaN(cant) || cant <= 0) { await send('Pon un numero, ej: 2'); return; } ped.productos[ped.actual].cant = cant; ped.paso = 'otra'; await send('Quieres otra cosa? Escribe *SI* o *NO*'); return; }
+      if (ped.paso === 'otra') {
+        if (text === 'no') { ped.paso = 'datos'; await send('Perfecto. Dime:\nNombre Apellido Carnet\nEj: Juan Perez 12345678901'); return; }
+        if (text.startsWith('si')) { ped.paso = 'otro_nombre'; await send('Dime el nombre o numero del otro producto:'); return; }
+        await send('Escribe SI o NO'); return;
+      }
+      if (ped.paso === 'otro_nombre') {
+        let enc = null;
+        if (/^[0-9]+$/.test(text.trim())) { const lista = Object.values(CATALOGO); enc = lista[parseInt(text.trim()) - 1]; }
+        else { const clave = text.toUpperCase(); if (CATALOGO[clave]) enc = CATALOGO[clave]; else { for (const k in CATALOGO) { if (k.includes(clave)) { enc = CATALOGO[k]; break; } } } }
+        if (enc) { ped.productos.push({ nombre: enc.nombre, precioUSD: enc.precioUSD, cant: 0, almacen: enc.almacen }); ped.actual = ped.productos.length - 1; ped.paso = 'cantidad'; await send(enc.nombre + ' - ' + enc.precioUSD + ' USD\nCuantos?'); }
+        else await send('No encontre ese producto. Escribe el nombre o numero exacto.');
+        return;
+      }
+      if (ped.paso === 'datos') { ped.cliente = rawText; ped.paso = 'telefono'; await send('Perfecto. Ahora dime el TELEFONO del cliente para que la mensajeria lo llame.\nEj: 5351234567'); return; }
+      if (ped.paso === 'telefono') {
+        ped.telefonoCliente = rawText; ped.paso = 'pago';
+        const totalUSD = ped.productos.reduce((s, p) => s + p.precioUSD * p.cant, 0);
+        const totalMN = totalMNProductos(ped.productos);
+        let resumen = 'RESUMEN DE TU PEDIDO\n\n';
+        ped.productos.forEach(p => { resumen += '- ' + p.nombre + ' x' + p.cant + ' = ' + (p.precioUSD * p.cant) + ' USD (Almacén '+p.almacen+' x'+tasaPorAlmacen(p.almacen)+')\n'; });
+        resumen += '\nTotal a pagar, escoge como vas a pagar:\n';
+        resumen += '1. USD: ' + totalUSD + ' USD\n';
+        resumen += '2. EUR: ' + totalUSD + ' EUR (EUR = USD)\n';
+        resumen += '3. MN: ' + totalMN.toLocaleString() + ' MN\n\n';
+        resumen += 'Escribe: 1, 2 o 3';
+        await send(resumen); return;
+      }
+      if (ped.paso === 'pago') {
+        if (text === '1' || text.includes('usd') || text.includes('dolar')) ped.metodoPago = 'USD';
+        else if (text === '2' || text.includes('eur')) ped.metodoPago = 'EUR';
+        else if (text === '3' || text.includes('mn') || text.includes('cup') || text.includes('peso')) ped.metodoPago = 'MN';
+        else { await send('Escribe: 1 para USD, 2 para EUR, 3 para MN'); return; }
+        ped.paso = 'tipo'; await send('Pago: ' + ped.metodoPago + '\n\nMensajeria o recogida?\nEscribe: *mensajeria* o *recogida*'); return;
+      }
+      if (ped.paso === 'tipo') {
+        if (text.includes('recogida')) {
+          CONTADOR++; const totalUSD = ped.productos.reduce((s, p) => s + p.precioUSD * p.cant, 0);
+          const totalMNFinal = totalMNProductos(ped.productos);
+          const vale = { numero: CONTADOR, gestor: from, gestorNombre: ped.gestorNombre || GESTORES[from] || nombreGestor, cliente: ped.cliente, telefonoCliente: ped.telefonoCliente, metodoPago: ped.metodoPago, productos: ped.productos, tipo: 'recogida', almacen: ped.productos[0].almacen, totalUSD, costoMensajeria: 0 };
+          VALES[CONTADOR] = vale; delete PEDIDOS[from];
+          const tv = 'VALE KAIROS-' + String(CONTADOR).padStart(3, '0') + ' (PENDIENTE)\n\nGestor: ' + vale.gestorNombre + '\nCliente: ' + vale.cliente + '\nTelefono cliente: ' + vale.telefonoCliente + '\nPago: ' + vale.metodoPago + '\nProductos:\n' + vale.productos.map(p => '- ' + p.nombre + ' x' + p.cant + ' = ' + (p.precioUSD * p.cant) + ' USD').join('\n') + '\n\nTotal: ' + totalUSD + ' ' + vale.metodoPago + '\nTotal MN ref: ' + totalMNFinal.toLocaleString() + ' MN\n\nRecogida en:\n' + DIRECCIONES[vale.almacen] + '\n\nLouis pon: kairos-' + String(CONTADOR).padStart(3, '0') + ' confirmado';
+          await sock.sendMessage(LOUIS_LID, { text: tv }); await send('Vale creado y enviado a Louis.'); return;
+        }
+        if (text.includes('mensajer')) { ped.paso = 'direccion'; await send('Dime la direccion completa y municipio y barrio exacto.\nEj: Calle 10 #123, Vedado'); return; }
+        await send('Escribe: mensajeria o recogida'); return;
+      }
+      if (ped.paso === 'direccion') {
+        ped.direccion = rawText;
+        const almacenMens = ped.productos[0].almacen;
+        const calc = calcularMensajeria(almacenMens, rawText, ped.productos);
+        ped.costoMensajeria = calc.costo; ped.detalleMensajeria = calc.detalle;
+        CONTADOR++; const totalUSD = ped.productos.reduce((s, p) => s + p.precioUSD * p.cant, 0);
+        const totalMNFinal = totalMNProductos(ped.productos);
+        const vale = { numero: CONTADOR, gestor: from, gestorNombre: ped.gestorNombre || GESTORES[from] || nombreGestor, cliente: ped.cliente, telefonoCliente: ped.telefonoCliente, metodoPago: ped.metodoPago, productos: ped.productos, tipo: 'mensajeria', direccion: ped.direccion, totalUSD, costoMensajeria: calc.costo };
+        VALES[CONTADOR] = vale; delete PEDIDOS[from];
+        const tv = 'VALE KAIROS-' + String(CONTADOR).padStart(3, '0') + ' (PENDIENTE)\n\nGestor: ' + vale.gestorNombre + '\nCliente: ' + vale.cliente + '\nTelefono: ' + vale.telefonoCliente + '\nPago: ' + vale.metodoPago + '\nProductos:\n' + vale.productos.map(p => '- ' + p.nombre + ' x' + p.cant + ' = ' + (p.precioUSD * p.cant) + ' USD').join('\n') + '\nTotal USD/EUR: ' + totalUSD + '\nTotal MN ref: ' + totalMNFinal.toLocaleString() + ' MN\nMensajeria (A'+almacenMens+'): ' + calc.costo + ' MN ('+calc.detalle+')\nDireccion: ' + ped.direccion + '\n\nLouis pon: kairos-' + String(CONTADOR).padStart(3, '0') + ' confirmado';
+        await sock.sendMessage(LOUIS_LID, { text: tv }); await send('Vale creado.\nMensajeria Almacén '+almacenMens+': ' + calc.costo + ' MN\n'+calc.detalle+'\nTotal MN productos: '+totalMNFinal.toLocaleString()+'\nEnviado a Louis.'); return;
+      }
+    }
+  });
+}
+start();
