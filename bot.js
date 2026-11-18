@@ -1,6 +1,7 @@
-// KAIROS BOT - VERSION FINAL COMPLETA
+// KAIROS BOT - VERSION FINAL COMPLETA - NO MAS PARCHES
 const http = require('http');
 const QRCode = require('qrcode');
+const fs = require('fs');
 let ULTIMO_QR = '';
 
 http.createServer(async (req, res) => {
@@ -29,13 +30,24 @@ const DIRECCIONES = {
   3: 'En espera de direccion'
 };
 
+// ===== GUARDADO EN ARCHIVOS PARA QUE NO SE BORRE AL REINICIAR =====
 let CATALOGO = {};
 let AGOTADOS = new Set();
+let ADMIN_OK = new Set();
+try { if (fs.existsSync('catalogo.json')) CATALOGO = JSON.parse(fs.readFileSync('catalogo.json')); } catch(e) {}
+try { if (fs.existsSync('admins.json')) JSON.parse(fs.readFileSync('admins.json')).forEach(id => ADMIN_OK.add(id)); } catch(e) {}
+try { if (fs.existsSync('agotados.json')) JSON.parse(fs.readFileSync('agotados.json')).forEach(x => AGOTADOS.add(x)); } catch(e) {}
+
+function guardarTodo() {
+  try { fs.writeFileSync('catalogo.json', JSON.stringify(CATALOGO)); } catch(e) {}
+  try { fs.writeFileSync('admins.json', JSON.stringify([...ADMIN_OK])); } catch(e) {}
+  try { fs.writeFileSync('agotados.json', JSON.stringify([...AGOTADOS])); } catch(e) {}
+}
+
 let PEDIDOS = {};
 let VALES = {};
 let CONTADOR = 0;
-let ACTUALIZANDO = null;
-let ADMIN_OK = new Set();
+let ACTUALIZANDO = {};
 let TASA_USD = 450, TASA_EUR = 480;
 
 async function actualizarTasa() {
@@ -52,7 +64,6 @@ const MENSAJERIA = [
   ['COJIMAR', 2500], ['VIBORA', 2000], ['LAWTON', 2000], ['ARROYO NARANJO', 2500],
   ['BOYERO', 2500], ['LA LISA', 3500], ['HABANA VIEJA', 2000], ['PLAZA', 2000]
 ];
-
 function buscarMensajeria(t) {
   t = t.toUpperCase(); let mejor = null;
   for (const [z, p] of MENSAJERIA) { if (t.includes(z)) { if (!mejor || z.length > mejor[0].length) mejor = [z, p]; } }
@@ -84,63 +95,55 @@ async function start() {
     const esAdmin = ADMIN_OK.has(from) || esLouis;
 
     if (text === 'mi id') { await send('Tu ID es: ' + from); return; }
-    if (text === 'cancelar' || text === 'reiniciar' || text === 'menu') { delete PEDIDOS[from]; ACTUALIZANDO = null; await send('Listo, borre lo que estabas haciendo. Escribe *catalogo*'); return; }
-    if (text === 'soy admin kairos123') { ADMIN_OK.add(from); await send('Bienvenido Admin KAIROS.\nComandos: actualizar almacen 1, quitar producto X, agotado X, ver catalogo'); return; }
+    if (text === 'cancelar' || text === 'reiniciar' || text === 'menu') { delete PEDIDOS[from]; delete ACTUALIZANDO[from]; await send('Listo, borre lo que estabas haciendo. Escribe *catalogo*'); return; }
+    if (text === 'soy admin kairos123') {
+      ADMIN_OK.add(from); guardarTodo();
+      await send('Bienvenido Admin KAIROS.\nYa quedaste guardado, no tienes que volver a poner esto.\nComandos: actualizar almacen 1, quitar producto X, agotado X, ver catalogo');
+      return;
+    }
     if (text === 'tasa' || text === 'toque') { await send('El Toque +10\nUSD: ' + TASA_USD + ' MN\nEUR: ' + TASA_EUR + ' MN'); return; }
 
-if (esAdmin && ACTUALIZANDO) {
-  for (const k in CATALOGO) { if (CATALOGO[k].almacen === ACTUALIZANDO) delete CATALOGO[k]; }
-  const ag = [];
-
-  for (const l of rawText.split('\n')) {
-    let linea = l.trim();
-    if (!linea) continue;
-    // Quita el check, emojis, puntos
-    linea = linea.replace(/^[☑️✅✔️•\-\* ]+/u, '').trim();
-    if (!linea) continue;
-
-    // Quita cosas como ( 15 USD ) que estan en medio, no son el precio
-    linea = linea.replace(/\(.*?USD.*?\)/gi, '').trim();
-
-    // El precio es SIEMPRE el ultimo numero de la linea
-    // Ej: "Arrocera Estelectric --27 usd" -> precio 27, nombre "Arrocera Estelectric"
-    // Ej: "Fogón d petróleo -- 78" -> precio 78
-    // Ej: "Triciclo Ktikova 3100" -> precio 3100
-    const mPrecio = linea.match(/(.+?)[\s\-–—]*(\d+(\.\d+)?)\s*(USD|usd)?\s*$/);
-    if (!mPrecio) continue;
-
-    let nom = mPrecio[1].trim().replace(/[-–—\s]+$/,'').trim();
-    let pre = parseFloat(mPrecio[2]);
-    if (!nom || !pre) continue;
-
-    const cl = nom.toUpperCase();
-    CATALOGO[cl] = { nombre: nom, precioUSD: pre, almacen: ACTUALIZANDO };
-    AGOTADOS.delete(cl);
-    ag.push(nom + ' - ' + pre + ' USD');
-  }
-  await send('Listo. Almacen ' + ACTUALIZANDO + ' actualizado.\n\n' + ag.join('\n'));
-  ACTUALIZANDO = null;
-  return;
-}
-
-
-    
-    if (esAdmin && ACTUALIZANDO) {
-      for (const k in CATALOGO) { if (CATALOGO[k].almacen === ACTUALIZANDO) delete CATALOGO[k]; }
+    // ===== ACTUALIZAR ALMACEN - SIEMPRE ES COMANDO, NUNCA LISTA =====
+    if (esAdmin && text.includes('actualizar')) {
+      let num = '1';
+      if (text.includes('2')) num = '2';
+      if (text.includes('3')) num = '3';
+      ACTUALIZANDO[from] = num;
+      delete PEDIDOS[from];
+      await send('Vas a actualizar ALMACEN ' + num + '\nManda la lista ahora, un producto por linea.\nEj: Arrocera Estelectric -- 27');
+      return;
+    }
+    if (esAdmin && ACTUALIZANDO[from]) {
+      const miAlmacen = ACTUALIZANDO[from];
+      for (const k in CATALOGO) { if (CATALOGO[k].almacen === miAlmacen) delete CATALOGO[k]; }
       const ag = [];
       for (const l of rawText.split('\n')) {
-        const lim = l.trim().replace(/^[✅☑️✔️•\-\* ]+/, '').trim(); if (!lim) continue;
-        const pa = lim.split(' - '); const nom = pa[0].trim(); const pre = pa[1] ? parseFloat(pa[1].replace(/[^0-9.]/g, '')) : 0;
-        const cl = nom.toUpperCase(); CATALOGO[cl] = { nombre: nom, precioUSD: pre, almacen: ACTUALIZANDO }; AGOTADOS.delete(cl); ag.push(nom + ' - ' + pre + ' USD');
+        let linea = l.trim();
+        if (!linea) continue;
+        linea = linea.replace(/^[☑️✅✔️•\-\* ]+/u, '').trim();
+        if (!linea) continue;
+        linea = linea.replace(/\(.*?USD.*?\)/gi, '').trim();
+        const mPrecio = linea.match(/(.+?)[\s\-–—]*(\d+(\.\d+)?)\s*(USD|usd)?\s*$/);
+        if (!mPrecio) continue;
+        let nom = mPrecio[1].trim().replace(/[-–—\s]+$/,'').trim();
+        let pre = parseFloat(mPrecio[2]);
+        if (!nom || !pre) continue;
+        const cl = nom.toUpperCase();
+        CATALOGO[cl] = { nombre: nom, precioUSD: pre, almacen: miAlmacen };
+        AGOTADOS.delete(cl);
+        ag.push(nom + ' - ' + pre + ' USD');
       }
-      await send('Listo. Almacen ' + ACTUALIZANDO + ' actualizado.\n\n' + ag.join('\n')); ACTUALIZANDO = null; return;
+      guardarTodo();
+      await send('Listo. Almacen ' + miAlmacen + ' actualizado.\n\n' + ag.join('\n'));
+      delete ACTUALIZANDO[from];
+      return;
     }
     if (esAdmin && text.startsWith('quitar producto ')) {
       const n = rawText.substring(15).trim().toUpperCase();
-      if (CATALOGO[n]) { delete CATALOGO[n]; await send('Quitado: ' + n); } else await send('No encontre ese producto.');
+      if (CATALOGO[n]) { delete CATALOGO[n]; guardarTodo(); await send('Quitado: ' + n); } else await send('No encontre ese producto.');
       return;
     }
-    if (esAdmin && text.startsWith('agotado ')) { const n = rawText.substring(8).trim().toUpperCase(); AGOTADOS.add(n); await send(n + ' marcado AGOTADO.'); return; }
+    if (esAdmin && text.startsWith('agotado ')) { const n = rawText.substring(8).trim().toUpperCase(); AGOTADOS.add(n); guardarTodo(); await send(n + ' marcado AGOTADO.'); return; }
     if (esAdmin && text === 'ver catalogo') {
       let t = 'CATALOGO KAIROS\n\n';
       for (const a of ['1','2','3']) { t += '--- ALMACEN ' + a + ' ---\n'; for (const k in CATALOGO) { if (CATALOGO[k].almacen === a) t += CATALOGO[k].nombre + ' - ' + CATALOGO[k].precioUSD + ' USD' + (AGOTADOS.has(k) ? ' AGOTADO' : '') + '\n'; } t += '\n'; }
@@ -174,15 +177,38 @@ if (esAdmin && ACTUALIZANDO) {
     if (text.includes('hola') || text.includes('buenas') || text.includes('bendecido')) { delete PEDIDOS[from]; await send('Hola, bendecido dia, bienvenido a KAIROS. Soy el gestor de KAIROS.\n\nEscribe: *catalogo*'); return; }
     if (text === 'catálogo' || text === 'catalogo') {
       let t = 'CATALOGO KAIROS\n\n';
-      for (const a of ['1','2','3']) { t += '--- ALMACEN ' + a + ' ---\n'; let hay = false; for (const k in CATALOGO) { if (CATALOGO[k].almacen === a) { hay = true; t += CATALOGO[k].nombre + ' - ' + CATALOGO[k].precioUSD + ' USD' + (AGOTADOS.has(k) ? ' AGOTADO' : '') + '\n'; } } if (!hay) t += '(Vacio)\n'; t += '\n'; }
-      t += 'Escribe el nombre exacto del producto que quieres.'; await send(t); return;
+      for (const a of ['1','2','3']) {
+        t += '--- ALMACEN ' + a + ' ---\n';
+        let lista = Object.values(CATALOGO).filter(p => p.almacen === a);
+        if (lista.length === 0) t += '(Vacio)\n';
+        else lista.forEach((p, i) => { t += (i+1) + '. ' + p.nombre + ' - ' + p.precioUSD + ' USD' + (AGOTADOS.has(p.nombre.toUpperCase()) ? ' AGOTADO' : '') + '\n'; });
+        t += '\n';
+      }
+      t += 'Escribe el numero o el nombre del producto que quieres.'; await send(t); return;
     }
 
-    const clave = text.toUpperCase();
-    if (CATALOGO[clave] && !PEDIDOS[from]) {
-      if (AGOTADOS.has(clave)) { await send('Ese producto esta AGOTADO.'); return; }
-      PEDIDOS[from] = { gestor: from, productos: [{ nombre: CATALOGO[clave].nombre, precioUSD: CATALOGO[clave].precioUSD, cant: 0, almacen: CATALOGO[clave].almacen }], paso: 'cantidad', actual: 0 };
-      await send(CATALOGO[clave].nombre + ' - ' + CATALOGO[clave].precioUSD + ' USD\n\nCuantos quieres? Ej: 2'); return;
+    // ===== ELEGIR POR NUMERO O NOMBRE PARCIAL =====
+    if (!PEDIDOS[from]) {
+      let productoEncontrado = null;
+      if (/^[0-9]+$/.test(text.trim())) {
+        const lista = Object.values(CATALOGO);
+        const idx = parseInt(text.trim()) - 1;
+        if (lista[idx]) productoEncontrado = lista[idx];
+      } else {
+        const clave = text.toUpperCase();
+        if (CATALOGO[clave]) productoEncontrado = CATALOGO[clave];
+        else {
+          for (const k in CATALOGO) {
+            if (k.includes(clave) || clave.includes(k.split(' ')[0])) { productoEncontrado = CATALOGO[k]; break; }
+          }
+        }
+      }
+      if (productoEncontrado) {
+        const claveReal = productoEncontrado.nombre.toUpperCase();
+        if (AGOTADOS.has(claveReal)) { await send('Ese producto esta AGOTADO.'); return; }
+        PEDIDOS[from] = { gestor: from, productos: [{ nombre: productoEncontrado.nombre, precioUSD: productoEncontrado.precioUSD, cant: 0, almacen: productoEncontrado.almacen }], paso: 'cantidad', actual: 0 };
+        await send(productoEncontrado.nombre + ' - ' + productoEncontrado.precioUSD + ' USD\n\nCuantos quieres? Ej: 2'); return;
+      }
     }
 
     const ped = PEDIDOS[from];
@@ -193,12 +219,15 @@ if (esAdmin && ACTUALIZANDO) {
       }
       if (ped.paso === 'otra') {
         if (text === 'no') { ped.paso = 'datos'; await send('Perfecto. Dime:\nNombre Apellido Carnet\nEj: Juan Perez 12345678901'); return; }
-        if (text.startsWith('si')) { ped.paso = 'otro_nombre'; await send('Dime el nombre del otro producto:'); return; }
+        if (text.startsWith('si')) { ped.paso = 'otro_nombre'; await send('Dime el nombre o numero del otro producto:'); return; }
         await send('Escribe SI o NO'); return;
       }
       if (ped.paso === 'otro_nombre') {
-        if (CATALOGO[clave]) { ped.productos.push({ nombre: CATALOGO[clave].nombre, precioUSD: CATALOGO[clave].precioUSD, cant: 0, almacen: CATALOGO[clave].almacen }); ped.actual = ped.productos.length - 1; ped.paso = 'cantidad'; await send(CATALOGO[clave].nombre + ' - ' + CATALOGO[clave].precioUSD + ' USD\nCuantos?'); }
-        else await send('No encontre ese producto. Escribe el nombre exacto.');
+        let enc = null;
+        if (/^[0-9]+$/.test(text.trim())) { const lista = Object.values(CATALOGO); enc = lista[parseInt(text.trim()) - 1]; }
+        else { const clave = text.toUpperCase(); if (CATALOGO[clave]) enc = CATALOGO[clave]; else { for (const k in CATALOGO) { if (k.includes(clave)) { enc = CATALOGO[k]; break; } } } }
+        if (enc) { ped.productos.push({ nombre: enc.nombre, precioUSD: enc.precioUSD, cant: 0, almacen: enc.almacen }); ped.actual = ped.productos.length - 1; ped.paso = 'cantidad'; await send(enc.nombre + ' - ' + enc.precioUSD + ' USD\nCuantos?'); }
+        else await send('No encontre ese producto. Escribe el nombre o numero exacto.');
         return;
       }
       if (ped.paso === 'datos') { ped.cliente = rawText; ped.paso = 'tipo'; await send('Mensajeria o recogida?\nEscribe: *mensajeria* o *recogida*'); return; }
