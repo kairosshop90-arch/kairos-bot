@@ -88,11 +88,43 @@ async function start() {
     if (text === 'soy admin kairos123') { ADMIN_OK.add(from); await send('Bienvenido Admin KAIROS.\nComandos: actualizar almacen 1, quitar producto X, agotado X, ver catalogo'); return; }
     if (text === 'tasa' || text === 'toque') { await send('El Toque +10\nUSD: ' + TASA_USD + ' MN\nEUR: ' + TASA_EUR + ' MN'); return; }
 
-    if (esAdmin && /^actualizar\s+almac[eé]n\s+[123]$/.test(text)) {
-      ACTUALIZANDO = text.match(/([123])/)[1];
-      await send('Vas a actualizar ALMACEN ' + ACTUALIZANDO + '\nManda la lista, un producto por linea:\nPanel solar LONGi 635 - 400\nAl enviar, se BORRA lo anterior.');
-      return;
-    }
+if (esAdmin && ACTUALIZANDO) {
+  for (const k in CATALOGO) { if (CATALOGO[k].almacen === ACTUALIZANDO) delete CATALOGO[k]; }
+  const ag = [];
+
+  for (const l of rawText.split('\n')) {
+    let linea = l.trim();
+    if (!linea) continue;
+    // Quita el check, emojis, puntos
+    linea = linea.replace(/^[☑️✅✔️•\-\* ]+/u, '').trim();
+    if (!linea) continue;
+
+    // Quita cosas como ( 15 USD ) que estan en medio, no son el precio
+    linea = linea.replace(/\(.*?USD.*?\)/gi, '').trim();
+
+    // El precio es SIEMPRE el ultimo numero de la linea
+    // Ej: "Arrocera Estelectric --27 usd" -> precio 27, nombre "Arrocera Estelectric"
+    // Ej: "Fogón d petróleo -- 78" -> precio 78
+    // Ej: "Triciclo Ktikova 3100" -> precio 3100
+    const mPrecio = linea.match(/(.+?)[\s\-–—]*(\d+(\.\d+)?)\s*(USD|usd)?\s*$/);
+    if (!mPrecio) continue;
+
+    let nom = mPrecio[1].trim().replace(/[-–—\s]+$/,'').trim();
+    let pre = parseFloat(mPrecio[2]);
+    if (!nom || !pre) continue;
+
+    const cl = nom.toUpperCase();
+    CATALOGO[cl] = { nombre: nom, precioUSD: pre, almacen: ACTUALIZANDO };
+    AGOTADOS.delete(cl);
+    ag.push(nom + ' - ' + pre + ' USD');
+  }
+  await send('Listo. Almacen ' + ACTUALIZANDO + ' actualizado.\n\n' + ag.join('\n'));
+  ACTUALIZANDO = null;
+  return;
+}
+
+
+    
     if (esAdmin && ACTUALIZANDO) {
       for (const k in CATALOGO) { if (CATALOGO[k].almacen === ACTUALIZANDO) delete CATALOGO[k]; }
       const ag = [];
