@@ -28,11 +28,13 @@ const ADMIN_NUMERO = "5356947882@s.whatsapp.net";
 const GRUPO_MENSAJERIA = "120363419483851412@g.us";
 const GRUPO_RECOGIDA = "120363417801594416@g.us";
 
+
 let ALMACENES = {
-  "1": { "J10": 10, "F6": 10, "BEE F6": 10, "F39": 10, "F22": 10, "PEDESTAL": 10, "NEVERA": 5, "FRIO": 5, "EXHIBIDORA": 3, "TV": 5, "COLCHON": 5, "LAVADORA": 5 },
-  "2": { "J10": 10, "F6": 10, "BEE F6": 10, "F39": 10, "F22": 10, "PEDESTAL": 10, "NEVERA": 5, "FRIO": 5, "EXHIBIDORA": 3, "TV": 5, "COLCHON": 5, "LAVADORA": 5 },
-  "3": { "J10": 10, "F6": 10, "BEE F6": 10, "F39": 10, "F22": 10, "PEDESTAL": 10, "NEVERA": 5, "FRIO": 5, "EXHIBIDORA": 3, "TV": 5, "COLCHON": 5, "LAVADORA": 5 }
+  "1": [],
+  "2": [],
+  "3": []
 };
+let ACTUALIZANDO = null;
 
 const DIRECCIONES_ALMACENES = {
   "1": "Calle 1ra No. 23308 / 4ta y 6ta. Altura del Mirador - Almacén 1 KAIROS",
