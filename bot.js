@@ -255,14 +255,13 @@ if (text.includes('mi numero')) {
     }
 
     // ACTUALIZAR SIMPLE
-    
-    // ACTUALIZAR SIMPLE - solo nombres
-    if (esAdmin && /^actualizar\s+[123]$/.test(text)) {
+    // ACTUALIZAR ALMACEN 1, 2 o 3 - Nombre 27 USD
+    if (esAdmin && /^actualizar(\s+almacen)?\s+[123]$/.test(text)) {
       ACTUALIZANDO = text.match(/(\d)/)[1];
-      await send(`📦 Vas a actualizar el ALMACÉN ${ACTUALIZANDO}\n\nManda la lista, un producto por línea.\nSi quieres cantidad, pon x y el número al final:\nPanel solar LONGi 635 x2\nCasco de moto x5\nSi no pones nada, lo pongo como 1.`);
+      await send(`📦 Vas a actualizar el ALMACÉN ${ACTUALIZANDO}\n\nManda así, un producto por línea:\nArrocera marwa 27 USD\nPanel solar LONGi 635 120 USD\nCasco de moto 35 USD x5\n\nEl último número antes de USD es el precio.\nSi pones x5 al final, pone 5 en stock. Si no, pone 1.`);
       return;
     }
-    if (esAdmin && ACTUALIZANDO) {
+    if (esAdmin && ACTUALIZANDO && ACTUALIZANDO !== 'PRECIOS') {
       let lineas = rawText.split('\n');
       let agregados = [];
       for (let l of lineas) {
@@ -270,20 +269,52 @@ if (text.includes('mi numero')) {
         if (!limpio) continue;
         let cant = 1;
         let nombre = limpio;
-        let m = limpio.match(/^(.*)\s+x(\d+)\s*$/i);
-        if (m) { nombre = m[1].trim(); cant = parseInt(m[2]); }
+        let precio = null;
+        let m = limpio.match(/^(.*)\s+(\d+)\s*USD(\s+x(\d+))?\s*$/i);
+        if (m) {
+          nombre = m[1].trim();
+          precio = parseInt(m[2]);
+          if (m[4]) cant = parseInt(m[4]);
+        } else {
+          let m2 = limpio.match(/^(.*)\s+x(\d+)\s*$/i);
+          if (m2) { nombre = m2[1].trim(); cant = parseInt(m2[2]); }
+        }
         let clave = nombre.toUpperCase();
         if (CATALOGO[clave] === undefined) {
-          CATALOGO[clave] = { nombre: nombre, precio: 0, comision: 1200, desc: nombre };
+          CATALOGO[clave] = { nombre: nombre, precio: precio || 0, comision: 1200, desc: nombre };
           for (let a of ["1","2","3"]) { if (ALMACENES[a][clave] === undefined) ALMACENES[a][clave] = 0; }
+        } else if (precio !== null) {
+          CATALOGO[clave].precio = precio;
+          CATALOGO[clave].nombre = nombre;
         }
         ALMACENES[ACTUALIZANDO][clave] = cant;
-        agregados.push(`${nombre} = ${cant}`);
+        agregados.push(`${nombre} = ${cant} - ${CATALOGO[clave].precio} USD`);
       }
       await send(`✅ Listo Louis 👑\nAlmacén ${ACTUALIZANDO} actualizado.\n\n${agregados.join('\n')}`);
       ACTUALIZANDO = null;
       return;
     }
+    // VER ALMACEN 1, 2 o 3
+    if (esAdmin && /^ver(\s+almacen)?\s+[123]$/.test(text)) {
+      let num = text.match(/(\d)/)[1];
+      let lista = [];
+      for (let clave in ALMACENES[num]) {
+        let stock = ALMACENES[num][clave];
+        if (stock > 0) {
+          let p = CATALOGO[clave];
+          lista.push(`${p ? p.nombre : clave} = ${stock} - ${p ? p.precio : 0} USD`);
+        }
+      }
+      if (lista.length === 0) { await send(`Almacén ${num} está vacío.`); return; }
+      await send(`📦 ALMACÉN ${num} 👑\n\n${lista.join('\n')}`);
+      return;
+    }
+
+
+
+
+
+
     
     if (esAdmin && text.startsWith('actualizar stock')) {
       let partes = rawText.split(' ');
