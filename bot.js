@@ -254,22 +254,37 @@ if (text.includes('mi numero')) {
     }
 
     // ACTUALIZAR SIMPLE
+      // ACTUALIZAR SIMPLE - acepta productos nuevos
     if (esAdmin && /^actualizar\s+[123]$/.test(text)) {
       ACTUALIZANDO = text.match(/(\d)/)[1];
-      await send(`📦 Vas a actualizar el ALMACÉN ${ACTUALIZANDO}\n\nManda la lista así, una por línea:\nJ10 10\nF39 5\nPEDESTAL 3`);
+      await send(`📦 Vas a actualizar el ALMACÉN ${ACTUALIZANDO}\n\nManda la lista, un producto por línea.\nPuedes mandar solo el nombre o con cantidad al final:\nPanel solar LONGi 635\nCasco de moto 2`);
       return;
     }
     if (esAdmin && ACTUALIZANDO) {
       let lineas = rawText.split('\n');
+      let agregados = [];
       for (let l of lineas) {
-        let partes = l.trim().split(' ');
-        let cant = parseInt(partes[partes.length-1]);
-        let clave = partes.slice(0,-1).join(' ').toUpperCase();
-        if (ALMACENES[ACTUALIZANDO][clave] !== undefined && !isNaN(cant)) {
-          ALMACENES[ACTUALIZANDO][clave] = cant;
+        let limpio = l.trim().replace(/^[✅☑️✔️•\-\* ]+/, '').trim();
+        if (!limpio) continue;
+        let partes = limpio.split(' ');
+        let ultimo = partes[partes.length-1];
+        let cant = parseInt(ultimo);
+        let nombre = limpio;
+        if (!isNaN(cant) && partes.length > 1) {
+          nombre = partes.slice(0,-1).join(' ');
+        } else {
+          cant = 1;
         }
+        let clave = nombre.toUpperCase();
+        // Si es producto nuevo, lo crea solo
+        if (CATALOGO[clave] === undefined) {
+          CATALOGO[clave] = { nombre: nombre, precio: 0, comision: 1200, desc: nombre };
+          for (let a of ["1","2","3"]) { if (ALMACENES[a][clave] === undefined) ALMACENES[a][clave] = 0; }
+        }
+        ALMACENES[ACTUALIZANDO][clave] = cant;
+        agregados.push(`${nombre} = ${cant}`);
       }
-      await send(`✅ Listo Louis 👑\nAlmacén ${ACTUALIZANDO} actualizado.`);
+      await send(`✅ Listo Louis 👑\nAlmacén ${ACTUALIZANDO} actualizado.\n\n${agregados.join('\n')}`);
       ACTUALIZANDO = null;
       return;
     }
