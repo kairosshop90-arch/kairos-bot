@@ -147,7 +147,6 @@ function calcularMensajeria(direccion, productos, textoCompleto) {
 }
 
 function buscarProducto(nombre) {
-  if (nombre.trim() === '1' || nombre.trim() === '2' || nombre.trim() === '3') return null;
   let n = nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 
   // 1. Primero busca EXACTO: "arrocera marwa" == "arrocera marwa"
@@ -254,102 +253,15 @@ if (text.includes('mi numero')) {
       await send(txt); return;
     }
 
-// ===== PARTE DE ALMACENES - COMPLETA =====
-
-    // 1. ACTUALIZAR ALMACEN 1, 2, 3 - Te muestra listado con nombre y precio
-    if (esAdmin && text.startsWith('actualizar almacen')) {
-      let num = text.replace('actualizar almacen','').trim();
-      if (!['1','2','3'].includes(num)) { await send('Pon: actualizar almacen 1 / 2 / 3'); return; }
-      pedidos[from] = { paso: 'actualizando', almacen: num, productos: [] };
-      let txt = `📦 *ACTUALIZAR ALMACÉN ${num}* 👑\n\n`;
-      for (let k in CATALOGO) {
-        txt += `${CATALOGO[k].nombre} - ${CATALOGO[k].precio} USD - Stock: ${ALMACENES[num][k] ?? 0}\n`;
-      }
-      txt += `\nPara actualizar escribe:\n*Nombre cantidad*\nEj: J10 15`;
-      await send(txt); return;
-    }
-
-    // Después del listado, pones Ej: J10 15 y se actualiza
-    if (esAdmin && ped.paso === 'actualizando') {
-      let partes = rawText.trim().split(' ');
-      let clave = buscarProducto(partes[0]);
-      let cant = parseInt(partes[partes.length-1]);
-      if (!clave || isNaN(cant)) { await send('Pon: Nombre cantidad - Ej: J10 15'); return; }
-      ALMACENES[ped.almacen][clave] = cant;
-      let almacenGuardado = ped.almacen;
-      ped.paso = 'inicio';
-      await send(`✅ Almacén ${almacenGuardado} actualizado 👑\n${CATALOGO[clave].nombre} - ${CATALOGO[clave].precio} USD = ${cant} disponibles`);
-      return;
-    }
-
-    // 2. BORRAR - Solo pones: borrar J10
-    if (esAdmin && text.startsWith('borrar ')) {
-      let clave = buscarProducto(rawText.replace(/borrar /i,'').trim());
-      if (!clave) { await send('No encontré ese producto'); return; }
-      let nombre = CATALOGO[clave].nombre;
-      delete CATALOGO[clave];
-      for (let a of ["1","2","3"]) delete ALMACENES[a][clave];
-      await send(`🗑️ Borrado 👑\n${nombre} ya no existe`);
-      return;
-    }
-
-    // 3. AGOTADO - Solo pones: agotado J10
-    if (esAdmin && text.startsWith('agotado ')) {
-      let clave = buscarProducto(rawText.replace(/agotado /i,'').trim());
-      if (!clave) { await send('No encontré ese producto'); return; }
-      for (let a of ["1","2","3"]) ALMACENES[a][clave] = 0;
-      await send(`✅ AGOTADO 👑\n${CATALOGO[clave].nombre} = 0 en los 3 almacenes`);
-      return;
-    }
-
-    // 4. VER ALMACEN - Para ver como está todo
-    if (esAdmin && text.startsWith('ver almacen')) {
-      let num = text.replace('ver almacen','').trim();
-      if (ALMACENES[num]) {
-        let txt = `📦 *ALMACÉN ${num} KAIROS*\n\n`;
-        for (let k in CATALOGO) txt += `${CATALOGO[k].nombre} - ${CATALOGO[k].precio} USD - Stock: ${ALMACENES[num][k] ?? 0}\n`;
-        await send(txt); return;
-      }
-      let txt = `📦 *TODOS LOS ALMACENES*\n\n`;
-      for (let a of ["1","2","3"]) { txt += `--- ALMACÉN ${a} ---\n`; for (let k in CATALOGO) txt += `${CATALOGO[k].nombre}: ${ALMACENES[a][k] ?? 0}\n`; txt += `\n`; }
-      await send(txt); return;
-    }
-
-    // 5. ENTRADA - Si quieres sumar, Ej: entrada 1 J10 5
-    if (esAdmin && text.startsWith('entrada')) {
-      let partes = rawText.split(' ');
-      let almacenNum = partes[1];
-      let clave = buscarProducto(partes[2]);
-      let cant = parseInt(partes[3]);
-      if (ALMACENES[almacenNum] && clave && !isNaN(cant)) {
-        ALMACENES[almacenNum][clave] += cant;
-        await send(`✅ Entrada hecha 👑\nAlmacén ${almacenNum} - ${CATALOGO[clave].nombre} +${cant}\nAhora tienes: ${ALMACENES[almacenNum][clave]}`);
-      } else await send(`Pon: entrada 1 J10 5`);
-      return;
-    }
-
-    // 6. AGREGAR PRODUCTO - Ej: agregar producto LAMPARA 15 Lámpara Solar
-    if (esAdmin && text.startsWith('agregar producto')) {
-      let resto = rawText.replace(/agregar producto /i, '').trim();
-      let partes = resto.split(' ');
-      let clave = partes[0].toUpperCase();
-      let precio = parseInt(partes[1]);
-      let nombreDesc = partes.slice(2).join(' ');
-      if (!clave || isNaN(precio) || !nombreDesc) { await send(`Pon: agregar producto LAMPARA 15 Lámpara Solar`); return; }
-      CATALOGO[clave] = { nombre: nombreDesc, precio: precio, comision: 1200, desc: nombreDesc };
-      for (let a of ["1","2","3"]) { if (ALMACENES[a][clave] === undefined) ALMACENES[a][clave] = 0; }
-      await send(`✅ Producto creado 👑\n${clave} - ${nombreDesc} - ${precio} USD`);
-      return;
-    }
-
-
-
+    // ACTUALIZAR SIMPLE
     
+    // ACTUALIZAR SIMPLE - solo nombres
+    if (esAdmin && /^actualizar\s+[123]$/.test(text)) {
       ACTUALIZANDO = text.match(/(\d)/)[1];
-      await send(`📦 Vas a actualizar el ALMACÉN ${ACTUALIZANDO}\n\nManda así, un producto por línea:\nArrocera marwa 27 USD\nPanel solar LONGi 635 120 USD\nCasco de moto 35 USD x5\n\nEl último número antes de USD es el precio.\nSi pones x5 al final, pone 5 en stock. Si no, pone 1.`);
+      await send(`📦 Vas a actualizar el ALMACÉN ${ACTUALIZANDO}\n\nManda la lista, un producto por línea.\nSi quieres cantidad, pon x y el número al final:\nPanel solar LONGi 635 x2\nCasco de moto x5\nSi no pones nada, lo pongo como 1.`);
       return;
     }
-    if (esAdmin && ACTUALIZANDO && ACTUALIZANDO !== 'PRECIOS') {
+    if (esAdmin && ACTUALIZANDO) {
       let lineas = rawText.split('\n');
       let agregados = [];
       for (let l of lineas) {
@@ -357,52 +269,20 @@ if (text.includes('mi numero')) {
         if (!limpio) continue;
         let cant = 1;
         let nombre = limpio;
-        let precio = null;
-        let m = limpio.match(/^(.*)\s+(\d+)\s*USD(\s+x(\d+))?\s*$/i);
-        if (m) {
-          nombre = m[1].trim();
-          precio = parseInt(m[2]);
-          if (m[4]) cant = parseInt(m[4]);
-        } else {
-          let m2 = limpio.match(/^(.*)\s+x(\d+)\s*$/i);
-          if (m2) { nombre = m2[1].trim(); cant = parseInt(m2[2]); }
-        }
+        let m = limpio.match(/^(.*)\s+x(\d+)\s*$/i);
+        if (m) { nombre = m[1].trim(); cant = parseInt(m[2]); }
         let clave = nombre.toUpperCase();
         if (CATALOGO[clave] === undefined) {
-          CATALOGO[clave] = { nombre: nombre, precio: precio || 0, comision: 1200, desc: nombre };
+          CATALOGO[clave] = { nombre: nombre, precio: 0, comision: 1200, desc: nombre };
           for (let a of ["1","2","3"]) { if (ALMACENES[a][clave] === undefined) ALMACENES[a][clave] = 0; }
-        } else if (precio !== null) {
-          CATALOGO[clave].precio = precio;
-          CATALOGO[clave].nombre = nombre;
         }
         ALMACENES[ACTUALIZANDO][clave] = cant;
-        agregados.push(`${nombre} = ${cant} - ${CATALOGO[clave].precio} USD`);
+        agregados.push(`${nombre} = ${cant}`);
       }
       await send(`✅ Listo Louis 👑\nAlmacén ${ACTUALIZANDO} actualizado.\n\n${agregados.join('\n')}`);
       ACTUALIZANDO = null;
       return;
     }
-    // VER ALMACEN 1, 2 o 3
-    if (esAdmin && /^ver(\s+almacen)?\s+[123]$/.test(text)) {
-      let num = text.match(/(\d)/)[1];
-      let lista = [];
-      for (let clave in ALMACENES[num]) {
-        let stock = ALMACENES[num][clave];
-        if (stock > 0) {
-          let p = CATALOGO[clave];
-          lista.push(`${p ? p.nombre : clave} = ${stock} - ${p ? p.precio : 0} USD`);
-        }
-      }
-      if (lista.length === 0) { await send(`Almacén ${num} está vacío.`); return; }
-      await send(`📦 ALMACÉN ${num} 👑\n\n${lista.join('\n')}`);
-      return;
-    }
-
-
-
-
-
-
     
     if (esAdmin && text.startsWith('actualizar stock')) {
       let partes = rawText.split(' ');
@@ -503,133 +383,13 @@ if (esAdmin && text.startsWith('limpiar almacen')) {
 
     let ped = pedidos[from] || { paso: 'inicio', productos: [], nombreComercial: '' };
 
-if ((text.includes('hola') || text.includes('menu') || text.includes('catalogo')) && (!ped.paso || ped.paso === 'inicio')) {
+    if ((text.includes('hola') || text.includes('menu') || text.includes('catalogo')) && (!ped.paso || ped.paso === 'inicio')) {
       pedidos[from] = { paso: 'nombre', productos: [] };
       await send(`Hola, bendecido día 🙏\nBienvenido a KAIROS SHOP 👑\n\nAntes de empezar, ¿cómo te llamas? (Nombre del comercial)`);
       return;
-}
-
-
-  
+    }
 
     if (ped.paso === 'nombre') {
       ped.nombreComercial = rawText;
       ped.paso = 'catalogo'; pedidos[from] = ped;
-      await send(`Gracias ${rawText} 👑\n\n📋 CATÁLOGO:\n✅ Pedestal 18" - *23 USD*\n✅ J10 - *40 USD*\n✅ F6 - *35 USD*\n✅ Bee F6 - *32 USD*\n✅ F39 - *42 USD*\n✅ F22 - *70 USD*\n✅ Nevera / Frío / Exhibidora / TV / Lavadora / Colchón\n\n¿Cuál quieres? Escribe el modelo, ej: *J10*`);
-      return;
-    }
-
-    let claveProd = buscarProducto(rawText);
-    if (claveProd && (ped.paso === 'catalogo' || ped.paso === 'elegido' || ped.paso === 'otro')) {
-      let info = CATALOGO[claveProd];
-      let existente = ped.productos.find(p=>p.clave===claveProd);
-      if (existente) existente.cant += 1;
-      else ped.productos.push({ clave: claveProd, nombre: info.nombre, precio: info.precio, cant: 1 });
-      ped.paso = 'elegido'; pedidos[from] = ped;
-      let lista = ped.productos.map(p=>`• ${p.nombre} x${p.cant} - ${p.precio*p.cant} USD`).join('\n');
-      await send(`✅ *${info.nombre} - ${info.precio} USD*\n${info.desc}\n\n🛒 Tu pedido hasta ahora:\n${lista}\n\n¿Quieres otro equipo?\n\n1. Sí, ver otros\n2. No, ya escogí / Quiero pedir estos`);
-      return;
-    }
-
-    if (ped.paso === 'elegido' && text === '1') {
-      ped.paso = 'catalogo'; pedidos[from] = ped;
-      await send(`📋 CATÁLOGO:\n✅ Pedestal 18" - 23 USD\n✅ J10 - 40 USD\n✅ F6 - 35 USD\n✅ F39 - 42 USD\n✅ F22 - 70 USD\n✅ Nevera / Frío / Exhibidora / TV / Lavadora / Colchón\n\nEscribe el modelo:`); return;
-    }
-    if (ped.paso === 'elegido' && (text === '2' || text.includes('ya escogi') || text.includes('quiero pedir') || text.includes('no'))) {
-      ped.paso = 'tipo_entrega'; pedidos[from] = ped;
-      await send(`Perfecto ${ped.nombreComercial} 👑\n\n¿Cómo quieres recibirlo?\n\n1. 🚚 Mensajería a tu casa\n2. 🏬 Recogida en el local (SIN COSTO)`);
-      return;
-    }
-
-    if (ped.paso === 'tipo_entrega' && text === '1') {
-      ped.paso = 'direccion'; pedidos[from] = ped;
-      await send(`Perfecto 👑\n\nAhora pásame tu *dirección completa* para calcular la mensajería 📍\nEj: *San Miguel, Entrincado, Calle 5 #123 entre 1ra y 2da*`);
-      return;
-    }
-
-    if (ped.paso === 'tipo_entrega' && text === '2') {
-      let almacenEncontrado = "1";
-      let primerProd = ped.productos[0];
-      for (let a of ["1","2","3"]) {
-        if (ALMACENES[a][primerProd.clave] > 0) { almacenEncontrado = a; break; }
-      }
-      ped.almacenEntrega = almacenEncontrado;
-      ped.direccion = `RECOGIDA EN LOCAL - ALMACÉN ${almacenEncontrado} - ${DIRECCIONES_ALMACENES[almacenEncontrado]}`;
-      ped.mensajeria = 0;
-      ped.detalleMens = `Recogida en local - Sin costo`;
-      ped.paso = 'pago'; pedidos[from] = ped;
-      let totalUSD = ped.productos.reduce((s,p)=>s+p.precio*p.cant,0);
-      await send(`🏬 *RECOGIDA EN EL LOCAL* 👑\n\nTu equipo está en el *ALMACÉN ${almacenEncontrado}*\n📍 Dirección: ${DIRECCIONES_ALMACENES[almacenEncontrado]}\n🚚 Mensajería: *0 CUP - GRATIS*\n\nTotal equipos: ${totalUSD} USD\n\n¿Cómo desea pagar?\n\n1. 💵 USD - ${totalUSD} USD\n2. 💶 Euros - ${totalUSD} Euros\n3. 💰 MN - ${totalUSD * TASA_MN} MN (${totalUSD} USD x ${TASA_MN})\n\nEscriba 1, 2 o 3`);
-      return;
-    }
-
-    if (ped.paso === 'direccion') {
-      let calc = calcularMensajeria(rawText, ped.productos, rawText);
-      if (!calc) { await send(`No encontré esa zona 😅\nEscríbeme municipio + reparto, ej: *Guanabacoa, El Roble*`); return; }
-      ped.direccion = rawText; ped.mensajeria = calc.precio; ped.detalleMens = calc.detalle; ped.paso = 'pago'; pedidos[from] = ped;
-      let totalUSD = ped.productos.reduce((s,p)=>s+p.precio*p.cant,0);
-      await send(`📍 Dirección: ${rawText}\n🚚 Mensajería: *${calc.precio} CUP*\n(${calc.detalle})\n\nTotal equipos: ${totalUSD} USD\n\n¿Cómo desea pagar?\n\n1. 💵 USD - ${totalUSD} USD + ${calc.precio} CUP mensajería\n2. 💶 Euros - ${totalUSD} Euros + ${calc.precio} CUP mensajería\n3. 💰 MN - ${totalUSD * TASA_MN} MN (${totalUSD} USD x ${TASA_MN}) + ${calc.precio} CUP mensajería\n\nEscriba 1, 2 o 3`);
-      return;
-    }
-
-    if (ped.paso === 'pago' && ['1','2','3'].includes(text)) {
-      let totalUSD = ped.productos.reduce((s,p)=>s+p.precio*p.cant,0);
-      if (text === '1') ped.pago = `${totalUSD} USD + ${ped.mensajeria} CUP mensajería`;
-      if (text === '2') ped.pago = `${totalUSD} Euros + ${ped.mensajeria} CUP mensajería`;
-      if (text === '3') ped.pago = `${totalUSD * TASA_MN} MN + ${ped.mensajeria} CUP mensajería`;
-      ped.paso = 'nota'; pedidos[from] = ped;
-      await send(`Perfecto 👑 Ya casi terminamos.\n\n¿Tiene alguna duda o algo que quiera dejarnos saber?\nEj: "Después de las 2" / "Traer vuelto"\n\n✍️ Escriba su nota o escriba "No"`);
-      return;
-    }
-
-    if (ped.paso === 'nota') {
-      ped.nota = (text === 'no' ? 'Sin nota' : rawText);
-      ped.paso = 'datos'; pedidos[from] = ped;
-      await send(`Anotado ✅ Nota: *${ped.nota}*\n\nAhora pásame tu *nombre y teléfono del cliente final*\nEj: *Louis, 55551234*`);
-      return;
-    }
-
-    if (ped.paso === 'datos') {
-      ped.nombreCliente = rawText;
-      let numeroVale = `KAIROS-${String(CONTADOR_VALE).padStart(3, '0')}`;
-      CONTADOR_VALE++;
-      let totalUSD = ped.productos.reduce((s,p)=>s+p.precio*p.cant,0);
-      let listaProd = ped.productos.map(p=>`• ${p.nombre} x${p.cant} - ${p.precio*p.cant} USD`).join('\n');
-      let comision = ped.productos.reduce((s,p)=>s + (p.cant * (CATALOGO[p.clave]?.comision || 1200)),0);
-      let detalleComision = ped.productos.map(p=>`• ${p.nombre} x${p.cant} = ${p.cant * (CATALOGO[p.clave]?.comision || 1200)} CUP`).join('\n');
-      let nc = ped.nombreComercial || 'Sin nombre';
-      if (!comisiones[nc]) comisiones[nc] = { ventas: 0, total: 0 };
-      comisiones[nc].ventas += 1; comisiones[nc].total += comision;
-
-      VALES_GUARDADOS[numeroVale] = {
-        nombreComercial: nc,
-        nombreCliente: ped.nombreCliente,
-        direccion: ped.direccion,
-        listaProd: listaProd,
-        pago: ped.pago,
-        mensajeria: ped.mensajeria,
-        nota: ped.nota,
-        enviado: false
-      };
-
-      ped.productos.forEach(p=>{
-        let falta = p.cant;
-        for (let a of ["1","2","3"]) {
-          if (falta <= 0) break;
-          if (ALMACENES[a][p.clave] !== undefined) {
-            let quita = Math.min(ALMACENES[a][p.clave], falta);
-            ALMACENES[a][p.clave] -= quita;
-            falta -= quita;
-          }
-        }
-      });
-      await send(`✅ Pedido confirmado 👑\n\n🧾 Vale: *${numeroVale}*\n👤 Comercial: ${nc}\n👤 Cliente: ${ped.nombreCliente}\n\n📦 Productos:\n${listaProd}\nTotal: ${totalUSD} USD\n💰 Pago: ${ped.pago}\n🚚 Mensajería: ${ped.mensajeria} CUP\n📍 Dirección: ${ped.direccion}\n📝 Nota: ${ped.nota}\n\nGracias por comprar en KAIROS SHOP 👑`);
-      try {
-        await sock.sendMessage(ADMIN_NUMERO, { text: `🔔 *NUEVO VALE ${numeroVale}*\n\n👤 Comercial: ${nc}\n👤 Cliente: ${ped.nombreCliente}\n📱 Chat: ${from}\n📍 Dirección: ${ped.direccion}\n\n📦 Productos:\n${listaProd}\n💰 Pago: ${ped.pago}\n🚚 Mensajería: ${ped.mensajeria} CUP\n📝 NOTA: ${ped.nota}\n💰 Comisión ${nc}:\n${detalleComision}\nTOTAL COMISIÓN: ${comision} CUP\n\nPara enviar al grupo escribe:\n*vale confirmado*\n\n¡Atender! 👑` });
-      } catch(e) { console.log('Error aviso admin', e); }
-      delete pedidos[from];
-      return;
-    }
-  });
-}
-start();
+      await send(`Gracias ${rawText} 👑\n\n📋 CATÁLOGO:\n✅ Pedestal 18" - *23 USD*\n✅ J10
