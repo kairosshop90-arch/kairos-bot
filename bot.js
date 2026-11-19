@@ -102,7 +102,11 @@ if(ped.paso==='tipo'){
   if(text.includes('mensajer')){ped.paso='direccion';await send('Dime la direccion completa y barrio exacto.\nEj: Calle 10 #123, Vedado');return;}
   await send('Escribe: mensajeria o recogida');return;
 }
-if(ped.paso==='direccion'){
+
+  if(ped.paso=='direccion'){ped.direccion=text;ped.paso='nota';await send('¿Tienes alguna duda o detalle para la tienda? Ej: vuelto, hora, llamar antes.\nSi no tienes nada, no escribas nada.');return;}
+
+if(ped.paso=='nota'){ped.nota=text;ped.paso='vale';await send('Listo ✅ Tu pedido ya fue enviado a la tienda.');return;}
+  
   ped.direccion=rawText;let almacenes=[...new Set(ped.productos.map(p=>String(p.almacen)))];let totalMens=0;let detalles=[];let textoVales='';
   for(const a of almacenes){
     CONTADOR++;let prodsA=ped.productos.filter(p=>String(p.almacen)===a);let totalA=prodsA.reduce((s,p)=>s+p.precioUSD*p.cant,0);let totalMNA=prodsA.reduce((s,p)=>s+p.precioUSD*p.cant*tasaPorAlmacen(a),0);let calc=calcularMensajeria(a,rawText,prodsA);totalMens+=calc.costo;detalles.push('A'+a+': $'+calc.costo+' ('+calc.detalle+')');
