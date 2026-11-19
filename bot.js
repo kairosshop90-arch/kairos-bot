@@ -110,6 +110,7 @@ if(ped.paso==='direccion'){
   await send('Ya casi terminamos 👌\n\n¿Quieres agregar una nota al vale?\nEj: "tirame un vuelto", "vuelto en moneda nacional", "despues de las 2 de la tarde"\n\nEscribe tu nota o escribe *sin nota*');
   return;
 }
+  
 if(ped.paso==='nota'){
   let nota=rawText.trim();
   if(nota.toLowerCase()==='sin nota'||nota.toLowerCase()==='no'||nota.toLowerCase()==='ninguna'||nota.toLowerCase()==='sin notas') nota='';
