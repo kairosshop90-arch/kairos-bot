@@ -105,8 +105,6 @@ if(ped.paso==='tipo'){
 
   if(ped.paso=='direccion'){ped.direccion=text;ped.paso='nota';await send('¿Tienes alguna duda o detalle para la tienda? Ej: vuelto, hora, llamar antes.\nSi no tienes nada, no escribas nada.');return;}
 
-if(ped.paso=='nota'){ped.nota=text;ped.paso='vale';await send('Listo ✅ Tu pedido ya fue enviado a la tienda.');return;}
-
 if(ped.paso=='direccion'){ped.direccion=rawText;ped.paso='nota';await send('¿Tienes alguna duda o detalle para la tienda? Ej: vuelto, hora, llamar antes.\nSi no tienes nada, no escribas nada.');return;}
 if(ped.paso=='nota'){ped.nota=rawText;
   let almacenes=[...new Set(ped.productos.map(p=>String(p.almacen)))];let totalMens=0;let detalles=[];let textoVales='';
