@@ -2,9 +2,7 @@ const http=require('http');const QRCode=require('qrcode');const fs=require('fs')
 async function backup_to_github(){try{const token=process.env.GITHUB_TOKEN;const repo=process.env.GITHUB_REPO;if(!token||!repo)return;const datos={catalogo:CATALOGO,admins:[...ADMIN_OK],agotados:[...AGOTADOS],gestores:GESTORES,vales:VALES,contador:CONTADOR,comisiones:COMISIONES,info_productos:INFO_PRODUCTOS,fecha:new Date().toISOString()};const content=Buffer.from(JSON.stringify(datos,null,2)).toString('base64');const url=`https://api.github.com/repos/${repo}/contents/kairos-backup.json`;const headers={'Authorization':`token ${token}`,'Accept':'application/vnd.github.v3+json','User-Agent':'kairos-bot'};let sha=null;const getRes=await fetch(url,{headers});if(getRes.ok){const j=await getRes.json();sha=j.sha;}const body={message:`Backup auto ${new Date().toLocaleString('es-CU')}`,content};if(sha)body.sha=sha;await fetch(url,{method:'PUT',headers,body:JSON.stringify(body)});}catch(e){console.log('Error backup:',e.message);}}
 http.createServer(async(req,res)=>{if(req.url==='/qr'){if(!ULTIMO_QR){res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});res.end('<h1>Aun no hay QR, espera 20 seg y recarga</h1><a href="/qr">Recargar</a>');return;}const img=await QRCode.toDataURL(ULTIMO_QR);res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});res.end('<h1>KAIROS - Escanea el QR</h1><img src="'+img+'" style="width:350px">');return;}res.writeHead(200,{'Content-Type':'text/plain; charset=utf-8'});res.end('KAIROS OK - Ve a /qr para vincular');}).listen(process.env.PORT||10000,()=>console.log('Puerto abierto'));
 const {default:makeWASocket,useMultiFileAuthState,DisconnectReason}=require('@whiskeysockets/baileys');const pino=require('pino');
-const LOUIS_JID='5356947882@s.whatsapp.net';
-const GRUPO_INFO = '120363414152883390@g.us';
-const LOUIS_LID='132624865579031@lid';const GRUPO_LOCAL='120363417801594416@g.us';const GRUPO_MENSAJERIA='120363419483851412@g.us';
+const LOUIS_JID='5356947882@s.whatsapp.net';const LOUIS_LID='132624865579031@lid';const GRUPO_LOCAL='120363417801594416@g.us';const GRUPO_MENSAJERIA='120363419483851412@g.us';
 const DIRECCIONES={1:'Calle 1ra / 2da y 4ta No.23308. Altura del Mirador',2:'Calle 2da #18532 / E y D. Luyano Moderno, San Miguel del Padron',3:'En espera de direccion'};
 let CATALOGO={};let AGOTADOS=new Set();let ADMIN_OK=new Set();let GESTORES={};let COMISIONES={};let INFO_PRODUCTOS={};
 try{if(fs.existsSync('catalogo.json'))CATALOGO=JSON.parse(fs.readFileSync('catalogo.json'));}catch(e){}
@@ -27,32 +25,17 @@ function buscarMensajeriaTabla(tabla,t){t=t.toLowerCase();let mejor=null;for(con
 function esGrande(n){n=n.toUpperCase();return n.includes('NEVERA')||n.includes('FRIO')||n.includes('FRÍO')||n.includes('PLANTA')||n.includes('EXHIBIDORA')||n.includes('TV');}
 function esTVoBici(n){n=n.toUpperCase();return n.includes('TV')||n.includes('BICICLETA')||n.includes('SMART');}
 function tipoA2(n){n=n.toUpperCase();if(n.includes('EXHIBIDORA'))return 'exhibidora';if(n.includes('NEVERA 11')||n.includes('NEVERA 16'))return 'nevera';if(n.includes('FRIO')||n.includes('FRÍO')){const m=n.match(/(\d+)\s*PIES/);if(m&&parseInt(m[1])>=15)return 'frio15';return 'grande';}if(esGrande(n))return 'grande';return 'normal';}
-function calcularMensajeria(almacen,direccion,productos){const tabla=String(almacen)==='1'?MENSAJERIA_A1:MENSAJERIA_A2;const enc=buscarMensajeriaTabla(tabla,direccion);if(!enc)return{costo:0,zona:'?',detalle:'No encontrada - preguntar'};let base=enc[1];let total=base;let detalle='Base '+enc[0]+': $'+base;let cant=productos.reduce((s,p)=>s+p.cant,0);if(String(almacen)==='1'){if(cant>=4&&cant<=6){total+=1000;detalle+=' + $1,000 (4-6 art)';}if(cant>6){total=base*2;detalle+=' x2 (>6 art)';}let hayGrande=productos.some(p=>esGrande(p.nombre));let hayTV=productos.some(p=>esTVoBici(p.nombre));if(hayGrande){total+=1000;detalle+=' + $1,000 grande';}if(hayTV){total+=500;detalle+=' + $500 TV/Bici';}}else{let tipos=productos.map(p=>tipoA2(p.nombre));if(tipos.includes('frio15')&&productos.length===1&&cant===1){total=base+800;detalle+=' + $800 Frío 15+';return{costo:total,zona:enc[0],detalle};}let duplicar=cant>=3||tipos.includes('grande')||tipos.includes('nevera')||tipos.includes('exhibidora');if(duplicar){total=base*2;detalle+=' x2 (grande / 3+ eq)';}if(tipos.includes('nevera')){total+=500;detalle+=' + $500 Nevera 11/16';}if(tipos.includes('exhibidora')){total+=1000;detalle+=' + $1,000 Exhibidora';}}return{costo:total,zona:enc[0],detalle};}
+function
+calcularMensajeria(almacen,direccion,productos){const tabla=String(almacen)==='1'?MENSAJERIA_A1:MENSAJERIA_A2;const enc=buscarMensajeriaTabla(tabla,direccion);if(!enc)return{costo:0,zona:'?',detalle:'No encontrada - preguntar'};let base=enc[1];let total=base;let detalle='Base '+enc[0]+': $'+base;let cant=productos.reduce((s,p)=>s+p.cant,0);if(String(almacen)==='1'){if(cant>=4&&cant<=6){total+=1000;detalle+=' + $1,000 (4-6 art)';}if(cant>6){total=base*2;detalle+=' x2 (>6 art)';}let hayGrande=productos.some(p=>esGrande(p.nombre));let hayTV=productos.some(p=>esTVoBici(p.nombre));if(hayGrande){total+=1000;detalle+=' + $1,000 grande';}if(hayTV){total+=500;detalle+=' + $500 TV/Bici';}}else{let tipos=productos.map(p=>tipoA2(p.nombre));if(tipos.includes('frio15')&&productos.length===1&&cant===1){total=base+800;detalle+=' + $800 Frío 15+';return{costo:total,zona:enc[0],detalle};}let duplicar=cant>=3||tipos.includes('grande')||tipos.includes('nevera')||tipos.includes('exhibidora');if(duplicar){total=base*2;detalle+=' x2 (grande / 3+ eq)';}if(tipos.includes('nevera')){total+=500;detalle+=' + $500 Nevera 11/16';}if(tipos.includes('exhibidora')){total+=1000;detalle+=' + $1,000 Exhibidora';}}return{costo:total,zona:enc[0],detalle};}
 function comisionDe(prods){let t=0;for(const p of prods)t+=esGrande(p.nombre)?2500:1200;return t;}
 function totalMNProductos(prods){return prods.reduce((s,p)=>s+p.precioUSD*p.cant*tasaPorAlmacen(p.almacen),0);}
 function buscarProductoEnAlmacen(almacen,txt){let lista=listaPorAlmacen(almacen);txt=txt.trim();if(/^[0-9]+$/.test(txt)){let idx=parseInt(txt)-1;return lista[idx]||null;}let clave=txt.toUpperCase();if(CATALOGO[clave]&&String(CATALOGO[clave].almacen)===String(almacen))return CATALOGO[clave];for(const p of lista){if(p.nombre.toUpperCase().includes(clave)||clave.includes(p.nombre.toUpperCase().split(' ')[0]))return p;}return null;}
-async function buscarInfoInternet(nombre){let clave=nombre.toUpperCase().trim();if(INFO_PRODUCTOS[clave]&&typeof INFO_PRODUCTOS[clave]==='object'){return 'INFO GUARDADA DE: '+nombre.toUpperCase()+'\n\n'+INFO_PRODUCTOS[clave].texto+'\n\nFuente: '+INFO_PRODUCTOS[clave].fuente+'\nGuardada el: '+INFO_PRODUCTOS[clave].fecha;}if(INFO_PRODUCTOS[clave]&&typeof INFO_PRODUCTOS[clave]==='string'){return 'INFO GUARDADA DE: '+nombre.toUpperCase()+'\n\n'+INFO_PRODUCTOS[clave];}try{let wiki=await fetch('https://es.wikipedia.org/api/rest_v1/page/summary/'+encodeURIComponent(nombre));let w=await wiki.json();let textoWiki=w.extract?w.extract.slice(0,1200):'';let ddg=await fetch('https://api.duckduckgo.com/?q='+encodeURIComponent(nombre+' especificaciones')+'&format=json&no_html=1');let d=await ddg.json();let textoDDG=d.AbstractText||d.RelatedTopics?.[0]?.Text||'';let link=d.AbstractURL||'https://es.wikipedia.org/wiki/'+encodeURIComponent(nombre);let textoFinal='';if(textoWiki)textoFinal+=textoWiki+'\n\n';if(textoDDG)textoFinal+='DATO EXTRA:\n'+textoDDG+'\n\n';if(!textoFinal)textoFinal='No encontre detalles en internet, pero es un producto de KAIROS: '+nombre;INFO_PRODUCTOS[clave]={texto:textoFinal,fuente:link,fecha:new Date().toLocaleDateString('es-CU',{day:'2-digit',month:'2-digit',year:'numeric'})};guardarTodo();return 'INFO NUEVA DE: '+nombre.toUpperCase()+'\n\n'+textoFinal+'\nFuente: '+link+'\n\nYa quedo guardada para la proxima vez.';}catch(e){return 'No pude buscar info de '+nombre+' ahora. Intenta de nuevo.';}}
+async function buscarInfoInternet(nombre){let clave=nombre.toUpperCase().trim();if(INFO_PRODUCTOS[clave]){return 'INFO GUARDADA DE: '+nombre.toUpperCase()+'\n\n'+INFO_PRODUCTOS[clave].texto+'\n\nFuente: '+INFO_PRODUCTOS[clave].fuente+'\nGuardada el: '+INFO_PRODUCTOS[clave].fecha;}try{let wiki=await fetch('https://es.wikipedia.org/api/rest_v1/page/summary/'+encodeURIComponent(nombre));let w=await wiki.json();let textoWiki=w.extract?w.extract.slice(0,1200):'';let ddg=await fetch('https://api.duckduckgo.com/?q='+encodeURIComponent(nombre+' especificaciones')+'&format=json&no_html=1');let d=await ddg.json();let textoDDG=d.AbstractText||d.RelatedTopics?.[0]?.Text||'';let link=d.AbstractURL||'https://es.wikipedia.org/wiki/'+encodeURIComponent(nombre);let textoFinal='';if(textoWiki)textoFinal+=textoWiki+'\n\n';if(textoDDG)textoFinal+='DATO EXTRA:\n'+textoDDG+'\n\n';if(!textoFinal)textoFinal='No encontre detalles en internet, pero es un producto de KAIROS: '+nombre;INFO_PRODUCTOS[clave]={texto:textoFinal,fuente:link,fecha:new Date().toLocaleDateString('es-CU',{day:'2-digit',month:'2-digit',year:'numeric'})};guardarTodo();return 'INFO NUEVA DE: '+nombre.toUpperCase()+'\n\n'+textoFinal+'\nFuente: '+link+'\n\nYa quedo guardada para la proxima vez.';}catch(e){return 'No pude buscar info de '+nombre+' ahora. Intenta de nuevo.';}}
 
 async function start(){const{state,saveCreds}=await useMultiFileAuthState('sesion-kairos');const sock=makeWASocket({logger:pino({level:'silent'}),auth:state});sock.ev.on('creds.update',saveCreds);sock.ev.on('connection.update',(u)=>{if(u.qr){ULTIMO_QR=u.qr;console.log('QR NUEVO - VE A /qr');}if(u.connection==='close'){const rec=u.lastDisconnect?.error?.output?.statusCode!==DisconnectReason.loggedOut;if(rec)start();}else if(u.connection==='open'){console.log('KAIROS CONECTADO');ULTIMO_QR='';}});sock.ev.on('messages.upsert',async({messages})=>{const m=messages[0];if(!m.message||m.key.fromMe)return;const from=m.key.remoteJid;const rawText=(m.message.conversation||m.message.extendedTextMessage?.text||'').trim();if(from.endsWith('@g.us')){const quienHabla=m.key.participant||m.participant||'';const esLouisGrupo=quienHabla===LOUIS_JID||quienHabla===LOUIS_LID||quienHabla.includes('5356947882')||quienHabla.includes('132624865579031');const mcGrupo=rawText.match(/kairos[-\s]?(\d+)\s+confirmado/i);if(esLouisGrupo&&mcGrupo){}else{return;}}const nombreGestor=m.pushName||from;const text=rawText.toLowerCase().trim();const send=async(t)=>{await sock.sendMessage(from,{text:t});};const esLouis=from===LOUIS_JID||from===LOUIS_LID;const esAdmin=ADMIN_OK.has(from)||esLouis;
 if(text==='mi id'){await send('Tu ID es: '+from);return;}
 if(text==='cancelar'||text==='reiniciar'||text==='menu'){delete PEDIDOS[from];delete ACTUALIZANDO[from];PIDIENDO_NOMBRE.delete(from);ELIGIENDO_ALMACEN.delete(from);await send('Listo, borre lo que estabas haciendo. Escribe *catalogo*');return;}
-if(text.startsWith('info ') && rawText.includes(':')){
-  let resto = rawText.substring(5).trim();
-  let idx = resto.indexOf(':');
-  let clave = resto.substring(0, idx).trim().toUpperCase();
-  let contenido = resto.substring(idx+1).trim();
-  if(!contenido){ await send('Escribe así:\nINFO arrocera marwa : la info'); return; }
-  INFO_PRODUCTOS[clave] = contenido; guardarTodo();
-  await send('✅ Info guardada para: '+clave+'\n\n'+contenido);
-  return;
-}
-if(text.startsWith('info ')){
-  let nombre = rawText.substring(5).trim();
-  if(!nombre){await send('Escribe: info + nombre del producto\nEj: info arrocera');return;}
-  let r = await buscarInfoInternet(nombre);
-  await send(r);
-  return;
-}
+if(text.startsWith('info ')||text.startsWith('buscar ')||text.startsWith('informacion ')){let prod=rawText.replace(/^(info|buscar|informacion)\s+/i,'').trim();if(!prod){await send('Escribe: info + producto\nEj: info Nevera 11 pies');return;}await send('Buscando info de '+prod+'... espera un momento');let info=await buscarInfoInternet(prod);await send(info.slice(0,4000));return;}
 if(text==='ver info'){let keys=Object.keys(INFO_PRODUCTOS);if(keys.length===0){await send('Todavia no hay info guardada. Escribe: info + producto');return;}await send('INFO GUARDADA ('+keys.length+'):\n\n'+keys.map(k=>'• '+k).join('\n'));return;}
 if(text.startsWith('borrar info ')){let k=rawText.substring(12).trim().toUpperCase();if(INFO_PRODUCTOS[k]){delete INFO_PRODUCTOS[k];guardarTodo();await send('Borrada info de '+k);}else await send('No tenia info guardada de '+k);return;}
 if(text==='soy admin kairos123'){ADMIN_OK.add(from);guardarTodo();await send('Bienvenido Admin KAIROS.\nComandos: actualizar almacen 1, quitar producto X, agotado X, ver catalogo');return;}
@@ -75,7 +58,41 @@ const mc=rawText.match(/kairos[-\s]?(\d+)\s+confirmado/i);
 if(esLouis&&mc){const nv=parseInt(mc[1],10);const v=VALES[nv];if(!v){await send('No encontre vale '+nv);return;}v.estado='confirmado';const totalMNFinal=totalMNProductos(v.productos);let res='VALE KAIROS-'+String(nv).padStart(3,'0')+' CONFIRMADO\n\nGestor: '+v.gestorNombre+'\nCliente: '+v.cliente+'\nTelefono cliente: '+v.telefonoCliente+'\nPago: '+v.metodoPago+'\nProductos:\n'+v.productos.map(p=>'- '+p.nombre+' x'+p.cant+' = '+(p.cant*p.precioUSD)+' USD (A'+p.almacen+')').join('\n')+'\nTotal: '+v.totalUSD+' '+v.metodoPago+'\nTotal MN ref: '+totalMNFinal.toLocaleString()+' MN\nMensajeria total: '+v.costoMensajeria+' MN';if(v.tipo==='recogida'){res+='\nRecogida en: '+DIRECCIONES[v.almacen];await sock.sendMessage(GRUPO_LOCAL,{text:res});await sock.sendMessage(v.gestor,{text:'Tu vale KAIROS-'+String(nv).padStart(3,'0')+' CONFIRMADO. Recoger en: '+DIRECCIONES[v.almacen]});}else{res+='\nMensajeria a: '+v.direccion;if(v.detalleMensajeria)res+='\n'+v.detalleMensajeria;await sock.sendMessage(GRUPO_MENSAJERIA,{text:res});await sock.sendMessage(v.gestor,{text:'Tu vale KAIROS-'+String(nv).padStart(3,'0')+' CONFIRMADO. Va por mensajeria.'});}await send('Vale '+nv+' enviado al grupo.');return;}
 const me=rawText.match(/vale\s+kairos[-\s]?(\d+)\s+entregado/i);
 if(esLouis&&me){const nv=parseInt(me[1],10);const v=VALES[nv];if(!v){await send('No encontre vale '+nv);return;}const com=comisionDe(v.productos);if(!COMISIONES[v.gestor])COMISIONES[v.gestor]={nombre:v.gestorNombre,total:0,ventas:[]};if(!COMISIONES[v.gestor].ventas.find(x=>x.numero===nv)){COMISIONES[v.gestor].ventas.push({numero:nv,fecha:new Date().toLocaleDateString('es-CU',{day:'2-digit',month:'2-digit'}),productos:v.productos.map(p=>p.nombre+' x'+p.cant).join(', '),comision:com,totalVale:v.totalUSD});COMISIONES[v.gestor].total+=com;COMISIONES[v.gestor].nombre=v.gestorNombre;guardarTodo();}await sock.sendMessage(v.gestor,{text:'VALE KAIROS-'+String(nv).padStart(3,'0')+' ENTREGADO. Tu comision: '+com+' MN\nTotal acumulado: '+COMISIONES[v.gestor].total.toLocaleString()+' MN\nEscribe *ver mis comisiones* para ver el detalle.'});await send('Entrega notificada. Comision: '+com);return;}
-if(text.includes('hola')||text.includes('buenas')||text.includes('bendecido')){delete PEDIDOS[from];ELIGIENDO_ALMACEN.delete(from);await send('Hola, bendecido dia, bienvenido a KAIROS. Soy el gestor de KAIROS.\n\nEscribe: *catalogo*');return;}
+if(text.includes('hola')||text.includes('buenas')||text.includes('bendecido')){delete PEDIDOS[from];ELIGIENDO_ALMACEN.delete(from);await send('Hola, bendecido dia, bienvenido a KAIROS. Soy el gestor de KAIROS.\n\nEscribe: *catalogo*');return;}'+ped.almacenActual+'\n2. Cambiar al otro almacén\n\nEscribe 1 o 2');return;}await send('Escribe SI o NO');return;}
+if(ped.paso==='elegir_almacen_otro'){let nuevoA=ped.almacenActual;if(text==='2'||text.includes('cambiar')||text.includes('otro'))nuevoA=ped.almacenActual==='1'?'2':'1';if(text==='1'||text==='2'||text.includes('mismo')||text.includes('cambiar')||text.includes('otro')){ped.almacenActual=nuevoA;ped.paso='elegir_producto';await send(textoCatalogoAlmacen(nuevoA)+'\nEscribe el numero o nombre del otro producto:');return;}await send('Escribe 1 mismo almacén o 2 cambiar');return;}
+if(ped.paso==='datos'){ped.cliente=rawText;ped.paso='telefono';await send('Perfecto. Ahora dime el TELEFONO del cliente.\nEj: 5351234567');return;}
+if(ped.paso==='telefono'){ped.telefonoCliente=rawText;ped.paso='pago';const totalUSD=ped.productos.reduce((s,p)=>s+p.precioUSD*p.cant,0);const totalMN=totalMNProductos(ped.productos);let resumen='RESUMEN DE TU PEDIDO\n\n';ped.productos.forEach(p=>{resumen+='- '+p.nombre+' x'+p.cant+' = '+(p.precioUSD*p.cant)+' USD (A'+p.almacen+' x'+tasaPorAlmacen(p.almacen)+')\n';});resumen+='\nTotal a pagar, escoge:\n1. USD: '+totalUSD+' USD\n2. EUR: '+totalUSD+' EUR (EUR = USD)\n3. MN: '+totalMN.toLocaleString()+' MN\n\nEscribe: 1, 2 o 3';await send(resumen);return;}
+if(ped.paso==='pago'){if(text==='1'||text.includes('usd')||text.includes('dolar'))ped.metodoPago='USD';else if(text==='2'||text.includes('eur'))ped.metodoPago='EUR';else if(text==='3'||text.includes('mn')||text.includes('cup')||text.includes('peso'))ped.metodoPago='MN';else{await send('Escribe: 1 para USD, 2 para EUR, 3 para MN');return;}ped.paso='tipo';await send('Pago: '+ped.metodoPago+'\n\nMensajeria o recogida?\nEscribe: *mensajeria* o *recogida*');return;}
+if(ped.paso==='tipo'){
+  if(text.includes('recogida')){
+    let almacenes=[...new Set(ped.productos.map(p=>String(p.almacen)))];
+    let textoVales='';
+    for(const a of almacenes){
+      CONTADOR++;let prodsA=ped.productos.filter(p=>String(p.almacen)===a);let totalA=prodsA.reduce((s,p)=>s+p.precioUSD*p.cant,0);let totalMNA=prodsA.reduce((s,p)=>s+p.precioUSD*p.cant*tasaPorAlmacen(a),0);
+      let vale={numero:CONTADOR,gestor:from,gestorNombre:ped.gestorNombre||GESTORES[from]||nombreGestor,cliente:ped.cliente,telefonoCliente:ped.telefonoCliente,metodoPago:ped.metodoPago,productos:prodsA,tipo:'recogida',almacen:a,totalUSD:totalA,costoMensajeria:0};
+      VALES[CONTADOR]=vale;
+      let tv='VALE KAIROS-'+String(CONTADOR).padStart(3,'0')+' (PENDIENTE) - ALMACÉN '+a+'\n\nGestor: '+vale.gestorNombre+'\nCliente: '+vale.cliente+'\nTelefono: '+vale.telefonoCliente+'\nPago: '+vale.metodoPago+'\nProductos:\n'+prodsA.map(p=>'- '+p.nombre+' x'+p.cant+' = '+(p.precioUSD*p.cant)+' USD').join('\n')+'\nTotal: '+totalA+' '+vale.metodoPago+'\nTotal MN: '+totalMNA.toLocaleString()+' MN\nRecogida en:\n'+DIRECCIONES[a]+'\n\nLouis pon: kairos-'+String(CONTADOR).padStart(3,'0')+' confirmado';
+      textoVales+='KAIROS-'+String(CONTADOR).padStart(3,'0')+' (A'+a+') ';await sock.sendMessage(LOUIS_LID,{text:tv});
+    }
+    delete PEDIDOS[from];await send('Pedido mixto partido por almacén.\nVales creados: '+textoVales+'\nEnviados a Louis.');return;
+  }
+  if(text.includes('mensajer')){ped.paso='direccion';await send('Dime la direccion completa y barrio exacto.\nEj: Calle 10 #123, Vedado');return;}
+  await send('Escribe: mensajeria o recogida');return;
+}
+if(ped.paso==='direccion'){
+  ped.direccion=rawText;let almacenes=[...new Set(ped.productos.map(p=>String(p.almacen)))];let totalMens=0;let detalles=[];let textoVales='';
+  for(const a of almacenes){
+    CONTADOR++;let prodsA=ped.productos.filter(p=>String(p.almacen)===a);let totalA=prodsA.reduce((s,p)=>s+p.precioUSD*p.cant,0);let totalMNA=prodsA.reduce((s,p)=>s+p.precioUSD*p.cant*tasaPorAlmacen(a),0);let calc=calcularMensajeria(a,rawText,prodsA);totalMens+=calc.costo;detalles.push('A'+a+': $'+calc.costo+' ('+calc.detalle+')');
+    let vale={numero:CONTADOR,gestor:from,gestorNombre:ped.gestorNombre||GESTORES[from]||nombreGestor,cliente:ped.cliente,telefonoCliente:ped.telefonoCliente,metodoPago:ped.metodoPago,productos:prodsA,tipo:'mensajeria',direccion:ped.direccion,totalUSD:totalA,costoMensajeria:calc.costo,almacen:a,detalleMensajeria:calc.detalle};
+    VALES[CONTADOR]=vale;let tv='VALE KAIROS-'+String(CONTADOR).padStart(3,'0')+' (PENDIENTE) - ALMACÉN '+a+'\n\nGestor: '+vale.gestorNombre+'\nCliente: '+vale.cliente+'\nTelefono: '+vale.telefonoCliente+'\nPago: '+vale.metodoPago+'\nProductos:\n'+prodsA.map(p=>'- '+p.nombre+' x'+p.cant+' = '+(p.precioUSD*p.cant)+' USD').join('\n')+'\nTotal USD/EUR: '+totalA+'\nTotal MN: '+totalMNA.toLocaleString()+' MN\nMensajeria A'+a+': '+calc.costo+' MN ('+calc.detalle+')\nDireccion: '+ped.direccion+'\n\nLouis pon: kairos-'+String(CONTADOR).padStart(3,'0')+' confirmado';
+    textoVales+='KAIROS-'+String(CONTADOR).padStart(3,'0')+' (A'+a+') ';await sock.sendMessage(LOUIS_LID,{text:tv});
+  }
+  let totalUSD=ped.productos.reduce((s,p)=>s+p.precioUSD*p.cant,0);let totalMN=totalMNProductos(ped.productos);
+  delete PEDIDOS[from];await send('Vales creados: '+textoVales+'\nMensajeria total: '+totalMens.toLocaleString()+' MN\n'+detalles.join('\n')+'\nTotal productos MN: '+totalMN.toLocaleString()+'\nEnviado a Louis.');return;
+}
+}
+});}
+start();
 if(text==='catálogo'||text==='catalogo'){ELIGIENDO_ALMACEN.add(from);delete PEDIDOS[from];await send('¿De qué almacén quieres?\n\n1. Almacén 1\n2. Almacén 2\n\nEscribe 1 o 2');return;}
 if(ELIGIENDO_ALMACEN.has(from)){
   if(text==='1'||text==='2'||text.includes('almacen 1')||text.includes('almacen 2')){
@@ -87,54 +104,11 @@ if(ELIGIENDO_ALMACEN.has(from)){
 if(!PEDIDOS[from]||PEDIDOS[from].paso==='elegir_producto'){
   if(!PEDIDOS[from]){await send('Escribe *catalogo* primero');return;}
   let ped0=PEDIDOS[from];let prod=buscarProductoEnAlmacen(ped0.almacenActual,rawText);
-  if(prod){if(AGOTADOS.has(prod.nombre.toUpperCase())){await send('Ese producto esta AGOTADO.');return;}ped0.productos.push({nombre:prod.nombre,precioUSD:prod.precioUSD,cant:0,almacen:prod.almacen});ped0.actual=ped0.productos.length-1;ped0.paso='cantidad';let extra='';if(INFO_PRODUCTOS[prod.nombre.toUpperCase()])extra='\n\nINFO GUARDADA:\n'+(typeof INFO_PRODUCTOS[prod.nombre.toUpperCase()]==='string'?INFO_PRODUCTOS[prod.nombre.toUpperCase()]:INFO_PRODUCTOS[prod.nombre.toUpperCase()].texto).slice(0,800);await send(prod.nombre+' - '+prod.precioUSD+' USD (Almacén '+prod.almacen+')'+extra+'\n\nCuantos quieres? Ej: 2');return;} else {await send('No encontre ese producto en Almacén '+ped0.almacenActual+'.\n'+textoCatalogoAlmacen(ped0.almacenActual));return;}
+  if(prod){if(AGOTADOS.has(prod.nombre.toUpperCase())){await send('Ese producto esta AGOTADO.');return;}ped0.productos.push({nombre:prod.nombre,precioUSD:prod.precioUSD,cant:0,almacen:prod.almacen});ped0.actual=ped0.productos.length-1;ped0.paso='cantidad';let extra='';if(INFO_PRODUCTOS[prod.nombre.toUpperCase()])extra='\n\nINFO GUARDADA:\n'+INFO_PRODUCTOS[prod.nombre.toUpperCase()].texto.slice(0,800);await send(prod.nombre+' - '+prod.precioUSD+' USD (Almacén '+prod.almacen+')'+extra+'\n\nCuantos quieres? Ej: 2');return;} else {await send('No encontre ese producto en Almacén '+ped0.almacenActual+'.\n'+textoCatalogoAlmacen(ped0.almacenActual));return;}
 }
 const ped=PEDIDOS[from];
 if(ped){
 if(ped.paso==='cantidad'){const cant=parseInt(text);if(isNaN(cant)||cant<=0){await send('Pon un numero, ej: 2');return;}ped.productos[ped.actual].cant=cant;ped.paso='otra';await send('Quieres otra cosa? Escribe *SI* o *NO*');return;}
-if(ped.paso==='otra'){if(text==='no'){ped.paso='datos';await send('Perfecto. Dime:\nNombre Apellido Carnet\nEj: Juan Perez 12345678901');return;}if(text.startsWith('si')){ped.paso='elegir_almacen_otro';await send('¿Del mismo almacén o del otro?\n\n1. Mismo almacén '+ped.almacenActual+'\n2. Cambiar al otro almacén\n\nEscribe 1 o 2');return;}await send('Escribe SI o NO');return;}
-if(ped.paso==='elegir_almacen_otro'){let nuevoA=ped.almacenActual;if(text==='2'||text.includes('cambiar')||text.includes('otro'))nuevoA=ped.almacenActual==='1'?'2':'1';if(text==='1'||text==='2'||text.includes('mismo')||text.includes('cambiar')||text.includes('otro')){ped.almacenActual=nuevoA;ped.paso='elegir_producto';await send(textoCatalogoAlmacen(nuevoA)+'\nEscribe el numero o nombre del otro producto:');return;}await send('Escribe 1 mismo almacén o 2 cambiar');return;}
-if(ped.paso==='datos'){ped.cliente=rawText;ped.paso='telefono';await send('Perfecto. Ahora dime el TELEFONO del cliente.\nEj: 5351234567');return;}
-if(ped.paso==='telefono'){ped.telefonoCliente=rawText;ped.paso='pago';const totalUSD=ped.productos.reduce((s,p)=>s+p.precioUSD*p.cant,0);const totalMN=totalMNProductos(ped.productos);let resumen='RESUMEN DE TU PEDIDO\n\n';ped.productos.forEach(p=>{resumen+='- '+p.nombre+' x'+p.cant+' = '+(p.precioUSD*p.cant)+' USD (A'+p.almacen+' x'+tasaPorAlmacen(p.almacen)+')\n';});resumen+='\nTotal a pagar, escoge:\n1. USD: '+totalUSD+' USD\n2. EUR: '+totalUSD+' EUR (EUR = USD)\n3. MN: '+totalMN.toLocaleString()+' MN\n\nEscribe: 1, 2 o 3';await send(resumen);return;}
-if(ped.paso==='pago'){if(text==='1'||text.includes('usd')||text.includes('dolar'))ped.metodoPago='USD';else if(text==='2'||text.includes('eur'))ped.metodoPago='EUR';else if(text==='3'||text.includes('mn')||text.includes('cup')||text.includes('peso'))ped.metodoPago='MN';else{await send('Escribe: 1 para USD, 2 para EUR, 3 para MN');return;}ped.paso='tipo';await send('Pago: '+ped.metodoPago+'\n\nMensajeria o recogida?\nEscribe: *mensajeria* o *recogida*');return;}
-if(ped.paso==='tipo'){
-  if(text.includes('recogida')){
-    ped.tipo='recogida';
-    ped.paso='nota';
-    await send('¿Tienes alguna duda o detalle para la tienda? Ej: vuelto, hora, llamar antes.\nSi no tienes nada, escribe: sin nota');
-    return;
-  }
-  if(text.includes('mensajer')){ped.tipo='mensajeria';ped.paso='direccion';await send('Dime la direccion completa y barrio exacto.\nEj: Calle 10 #123, Vedado');return;}
-  await send('Escribe: mensajeria o recogida');return;
-}
-if(ped.paso=='direccion'){ped.direccion=rawText;ped.paso='nota';await send('¿Tienes alguna duda o detalle para la tienda? Ej: vuelto, hora, llamar antes.\nSi no tienes nada, escribe: sin nota');return;}
-if(ped.paso=='nota'){
-  let notaTxt=rawText.trim();
-  ped.nota=(notaTxt.toLowerCase()==='sin nota'||notaTxt.toLowerCase()==='no'||notaTxt.toLowerCase()==='nada')?'':notaTxt;
-  let notaLine=ped.nota?'\nNotas: '+ped.nota:'';
-  let almacenes=[...new Set(ped.productos.map(p=>String(p.almacen)))];
-  let textoVales='';
-  if(ped.tipo==='recogida'){
-    for(const a of almacenes){
-      CONTADOR++;let prodsA=ped.productos.filter(p=>String(p.almacen)===a);let totalA=prodsA.reduce((s,p)=>s+p.precioUSD*p.cant,0);let totalMNA=prodsA.reduce((s,p)=>s+p.precioUSD*p.cant*tasaPorAlmacen(a),0);
-      let vale={numero:CONTADOR,gestor:from,gestorNombre:ped.gestorNombre||GESTORES[from]||nombreGestor,cliente:ped.cliente,telefonoCliente:ped.telefonoCliente,metodoPago:ped.metodoPago,productos:prodsA,tipo:'recogida',almacen:a,totalUSD:totalA,costoMensajeria:0,nota:ped.nota};
-      VALES[CONTADOR]=vale;
-      let tv='VALE KAIROS-'+String(CONTADOR).padStart(3,'0')+' (PENDIENTE) - ALMACÉN '+a+'\n\nGestor: '+vale.gestorNombre+'\nCliente: '+vale.cliente+'\nTelefono: '+vale.telefonoCliente+'\nPago: '+vale.metodoPago+'\nProductos:\n'+prodsA.map(p=>'- '+p.nombre+' x'+p.cant+' = '+(p.precioUSD*p.cant)+' USD').join('\n')+'\nTotal: '+totalA+' '+vale.metodoPago+'\nTotal MN: '+totalMNA.toLocaleString()+' MN\nRecogida en:\n'+DIRECCIONES[a]+notaLine+'\n\nLouis pon: kairos-'+String(CONTADOR).padStart(3,'0')+' confirmado';
-      textoVales+='KAIROS-'+String(CONTADOR).padStart(3,'0')+' (A'+a+') ';await sock.sendMessage(LOUIS_LID,{text:tv});
-    }
-    delete PEDIDOS[from];await send('Pedido recogida creado.\nVales: '+textoVales+'\nEnviados a Louis.');return;
-  }
-  let totalMens=0;let detalles=[];
-  for(const a of almacenes){
-    CONTADOR++;let prodsA=ped.productos.filter(p=>String(p.almacen)===a);let totalA=prodsA.reduce((s,p)=>s+p.precioUSD*p.cant,0);let totalMNA=prodsA.reduce((s,p)=>s+p.precioUSD*p.cant*tasaPorAlmacen(a),0);let calc=calcularMensajeria(a,ped.direccion,prodsA);totalMens+=calc.costo;detalles.push('A'+a+': $'+calc.costo+' ('+calc.detalle+')');
-    let vale={numero:CONTADOR,gestor:from,gestorNombre:ped.gestorNombre||GESTORES[from]||nombreGestor,cliente:ped.cliente,telefonoCliente:ped.telefonoCliente,metodoPago:ped.metodoPago,productos:prodsA,tipo:'mensajeria',direccion:ped.direccion,totalUSD:totalA,costoMensajeria:calc.costo,almacen:a,detalleMensajeria:calc.detalle,nota:ped.nota};
-    VALES[CONTADOR]=vale;let tv='VALE KAIROS-'+String(CONTADOR).padStart(3,'0')+' (PENDIENTE) - ALMACÉN '+a+'\n\nGestor: '+vale.gestorNombre+'\nCliente: '+vale.cliente+'\nTelefono: '+vale.telefonoCliente+'\nPago: '+vale.metodoPago+'\nProductos:\n'+prodsA.map(p=>'- '+p.nombre+' x'+p.cant+' = '+(p.precioUSD*p.cant)+' USD').join('\n')+'\nTotal USD/EUR: '+totalA+'\nTotal MN: '+totalMNA.toLocaleString()+' MN\nMensajeria A'+a+': '+calc.costo+' MN ('+calc.detalle+')\nDireccion: '+ped.direccion+notaLine+'\n\nLouis pon: kairos-'+String(CONTADOR).padStart(3,'0')+' confirmado';
-    textoVales+='KAIROS-'+String(CONTADOR).padStart(3,'0')+' (A'+a+') ';await sock.sendMessage(LOUIS_LID,{text:tv});
-  }
-  let totalMN=totalMNProductos(ped.productos);
-  delete PEDIDOS[from];await send('Vales creados: '+textoVales+'\nMensajeria total: '+totalMens.toLocaleString()+' MN\n'+detalles.join('\n')+'\nTotal productos MN: '+totalMN.toLocaleString()+'\nEnviado a Louis.');return;
-}
-}
-}
-});}
-start();
+if(ped.paso==='otra'){if(text==='no'){ped.paso='datos';await send('Perfecto. Dime:\nNombre Apellido Carnet\nEj: Juan Perez 12345678901');return;}if(text.startsWith('si')){ped.paso='elegir_almacen_otro';await send('¿Del mismo almacén o del otro?\n\n1. Mismo almacén
+
+
