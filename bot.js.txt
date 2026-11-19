@@ -9,6 +9,7 @@ const DIRECCIONES={1:'Calle 1ra / 2da y 4ta No.23308. Altura del Mirador',2:'Cal
 let CATALOGO={};let AGOTADOS=new Set();let ADMIN_OK=new Set();let GESTORES={};let COMISIONES={};let INFO_PRODUCTOS={};
 try{if(fs.existsSync('catalogo.json'))CATALOGO=JSON.parse(fs.readFileSync('catalogo.json'));}catch(e){}
 try{if(fs.existsSync('admins.json'))JSON.parse(fs.readFileSync('admins.json')).forEach(id=>ADMIN_OK.add(id));}catch(e){}
+ADMIN_OK.add(LOUIS_JID);ADMIN_OK.add(LOUIS_LID);
 try{if(fs.existsSync('agotados.json'))JSON.parse(fs.readFileSync('agotados.json')).forEach(x=>AGOTADOS.add(x));}catch(e){}
 try{if(fs.existsSync('gestores.json'))GESTORES=JSON.parse(fs.readFileSync('gestores.json'));}catch(e){}
 try{if(fs.existsSync('comisiones.json'))COMISIONES=JSON.parse(fs.readFileSync('comisiones.json'));}catch(e){}
