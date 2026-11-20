@@ -17,7 +17,7 @@ try{if(fs.existsSync('agotados.json'))JSON.parse(fs.readFileSync('agotados.json'
 try{if(fs.existsSync('gestores.json'))GESTORES=JSON.parse(fs.readFileSync('gestores.json'));}catch(e){}
 try{if(fs.existsSync('comisiones.json'))COMISIONES=JSON.parse(fs.readFileSync('comisiones.json'));}catch(e){}
 try{if(fs.existsSync('info-productos.json'))INFO_PRODUCTOS=JSON.parse(fs.readFileSync('info-productos.json'));}catch(e){}
-}  
+ 
 function guardarTodo(){try{fs.writeFileSync('catalogo.json',JSON.stringify(CATALOGO));}catch(e){}try{fs.writeFileSync('admins.json',JSON.stringify([...ADMIN_OK]));}catch(e){}try{fs.writeFileSync('agotados.json',JSON.stringify([...AGOTADOS]));}catch(e){}try{fs.writeFileSync('gestores.json',JSON.stringify(GESTORES));}catch(e){}try{fs.writeFileSync('comisiones.json',JSON.stringify(COMISIONES));}catch(e){}try{fs.writeFileSync('info-productos.json',JSON.stringify(INFO_PRODUCTOS));}catch(e){}backup_to_github();}
 
 async function buscarDuckDuckGo(pregunta) {
