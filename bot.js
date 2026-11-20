@@ -99,32 +99,7 @@ if(text==='comisiones'||text==='comision'){await send('COMISIONES KAIROS\n\nProd
 if(text==='ver mis comisiones'||text==='ver mis comsiones'||text==='mis comisiones'||text==='ver mis camiones'){const mis=COMISIONES[from];if(!mis||!mis.ventas||mis.ventas.length===0){await send('Todavía no tienes comisiones.\nCuando Louis marque tu vale como entregado, aquí te aparece.');return;}let t='MIS COMISIONES - '+(mis.nombre||GESTORES[from]||nombreGestor)+'\n\n';mis.ventas.forEach(v=>{t+=v.fecha+' | KAIROS-'+String(v.numero).padStart(3,'0')+' | '+v.productos+' | +'+v.comision.toLocaleString()+' MN\n';});t+='\nTOTAL ACUMULADO: '+mis.total.toLocaleString()+' MN\nVales: '+mis.ventas.length;await send(t);return;}
 if(esLouis&&(text==='ver comisiones'||text==='ver todas las comisiones')){let t='COMISIONES TODOS LOS GESTORES\n\n';let tot=0;for(const k in COMISIONES){t+=COMISIONES[k].nombre+' ('+k+'): '+COMISIONES[k].total.toLocaleString()+' MN - '+COMISIONES[k].ventas.length+' vales\n';tot+=COMISIONES[k].total;}t+='\nTOTAL A PAGAR: '+tot.toLocaleString()+' MN';await send(t);return;}
 if(esLouis&&text.startsWith('pagar comision ')){const resto=rawText.substring(15).trim();let target=null;for(const k in COMISIONES){if(k.includes(resto)||COMISIONES[k].nombre.toLowerCase().includes(resto.toLowerCase()))target=k;}if(!target){await send('No encontré ese gestor. Usa su número o nombre.');return;}let pagado=COMISIONES[target].total;COMISIONES[target].total=0;COMISIONES[target].ventas=[];guardarTodo();await send('Pagado '+pagado.toLocaleString()+' MN a '+COMISIONES[target].nombre+'. Puesto en 0.');return;}
-if(!esAdmin&&!GESTORES[from]&&!PIDIENDO_NOMBRE.has(from)){PIDIENDO_NOMBRE.add(from);await send(`Hola 👋 Bienvenido a *KAIROS* 👑
-
-Yo soy tu asistente y te ayudo con todo esto:
-
-📦 *1. VER PRODUCTOS*
-Escribe: *catalogo*
-Te muestro todos los productos del Almacén 1 con precio.
-
-🔍 *2. VER DETALLES DE UN PRODUCTO*
-Escribe: *info + nombre*
-Ej: *info arrocera marwa*
-Te digo para qué sirve, si gasta gas, si es eléctrica, si es recargable, todo.
-
-🛒 *3. HACER UN PEDIDO*
-Escribe el nombre del producto.
-Ej: *Arrocera Marwa*
-Y yo te guío paso a paso: recogida o domicilio, cómo pagas y tus datos.
-
-📍 *RECOGIDA*
-Si es recogida, te digo en qué almacén está y la dirección exacta.
-
-🚚 *DOMICILIO*
-Si es domicilio, me pasas tu dirección y lo dejamos listo.
-
-¿Con qué empezamos?
-Escribe *catalogo* para ver productos o *info arrocera marwa* para probar..\nEres nuevo, dime tu nombre completo para guardarte.\nEj: Maria Lopez');return;}
+if(!esAdmin&&!GESTORES[from]&&!PIDIENDO_NOMBRE.has(from)){PIDIENDO_NOMBRE.add(from);await send('Hola, bienvenido a KAIROS.\nEres nuevo, dime tu nombre completo para guardarte.\nEj: Maria Lopez');return;}
 if(!esAdmin&&PIDIENDO_NOMBRE.has(from)){const nombre=rawText.trim();if(nombre.length<3||nombre.toLowerCase()==='hola'||nombre.toLowerCase()==='catalogo'){await send('Dime tu nombre completo, ej: Maria Lopez');return;}GESTORES[from]=nombre;PIDIENDO_NOMBRE.delete(from);guardarTodo();await send('Perfecto '+nombre+', ya quedaste guardado.\nCada vale que mandes saldra con tu nombre.\n\nEscribe: *catalogo*');return;}
 if(esAdmin&&text.includes('actualizar')){let num='1';if(text.includes('2'))num='2';if(text.includes('3'))num='3';ACTUALIZANDO[from]=num;delete PEDIDOS[from];await send('Vas a actualizar ALMACEN '+num+'\nManda la lista ahora, un producto por linea.\nEj: Arrocera Estelectric -- 27');return;}
 if(esAdmin&&ACTUALIZANDO[from]){const miAlmacen=ACTUALIZANDO[from];for(const k in CATALOGO){if(CATALOGO[k].almacen===miAlmacen)delete CATALOGO[k];}const ag=[];for(const l of rawText.split('\n')){let linea=l.trim();if(!linea)continue;linea=linea.replace(/^[☑️✅✔️•\-\* ]+/u,'').trim();if(!linea)continue;linea=linea.replace(/\(.*?USD.*?\)/gi,'').trim();const mPrecio=linea.match(/(.+?)[\s\-–—]*(\d+(\.\d+)?)\s*(USD|usd)?\s*$/);if(!mPrecio)continue;let nom=mPrecio[1].trim().replace(/[-–—\s]+$/,'').trim();let pre=parseFloat(mPrecio[2]);if(!nom||!pre)continue;const cl=nom.toUpperCase();CATALOGO[cl]={nombre:nom,precioUSD:pre,almacen:miAlmacen};AGOTADOS.delete(cl);ag.push(nom+' - '+pre+' USD');}guardarTodo();await send('Listo. Almacen '+miAlmacen+' actualizado.\n\n'+ag.join('\n'));delete ACTUALIZANDO[from];return;}
