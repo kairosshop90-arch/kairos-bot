@@ -5,9 +5,6 @@ http.createServer(async(req,res)=>{if(req.url==='/qr'){if(!ULTIMO_QR){res.writeH
 const {default:makeWASocket,useMultiFileAuthState,DisconnectReason}=require('@whiskeysockets/baileys');const pino=require('pino');
 const LOUIS_JID='5356947882@s.whatsapp.net';
 const GRUPO_INFO = '120363414152883390@g.us';
-var INFO_PRODUCTOS = {
-  "coca cola": "Coca Cola 500ml - precio 200 CUP",
-};
 const LOUIS_LID='132624865579031@lid';
 const GRUPO_LOCAL='120363417801594416@g.us';
 const GRUPO_MENSAJERIA='120363419483851412@g.us';
