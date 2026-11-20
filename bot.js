@@ -114,7 +114,8 @@ if(!from.endsWith('@g.us')&&(text.startsWith('info ')||text.startsWith('buscar '
   if(encontrada){await send(`📦 *${encontrada} - KAIROS*\n\n${INFO_PRODUCTOS[encontrada].texto}`);return;}
   // Si no la tiene, el BOT pregunta en el grupo de dudas
   PENDIENTES_INFO[clave]=from;
-  await send(`No la tengo guardada todavía, ya pregunté en el grupo de dudas de KAIROS. En cuanto el admin la ponga te la mando aquí mismo.`);
+ var respuestaInternet = await buscarEnInternet('Informacion de ' + nombreProd);
+await send(respuestaInternet);
   await sock.sendMessage(GRUPO_INFO,{text:`❓ INFO PEDIDA: ${prod}\nLa pidió: ${GESTORES[from]||nombreGestor}\n\nSi tienen la info, manden:\ninfo ${prod} // su info`});
   return;
 }
