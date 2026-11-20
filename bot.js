@@ -17,14 +17,14 @@ try{if(fs.existsSync('agotados.json'))JSON.parse(fs.readFileSync('agotados.json'
 try{if(fs.existsSync('gestores.json'))GESTORES=JSON.parse(fs.readFileSync('gestores.json'));}catch(e){}
 try{if(fs.existsSync('comisiones.json'))COMISIONES=JSON.parse(fs.readFileSync('comisiones.json'));}catch(e){}
 try{if(fs.existsSync('info-productos.json'))INFO_PRODUCTOS=JSON.parse(fs.readFileSync('info-productos.json'));}catch(e){}
-  function guardarTodo(){try{fs.writeFileSync('catalogo.json',JSON.stringify(CATALOGO));}catch(e){}try{fs.writeFileSync('admins.json',JSON.stringify([...ADMIN_OK]));}catch(e){}try{fs.writeFileSync('agotados.json',JSON.stringify([...AGOTADOS]));}catch(e){}try{fs.writeFileSync('gestores.json',JSON.stringify(GESTORES));}catch(e){}try{fs.writeFileSync('comisiones.json',JSON.stringify(COMISIONES));}catch(e){}try{fs.writeFileSync('info-productos.json',JSON.stringify(INFO_PRODUCTOS));}catch(e){}backup_to_github();}
+}  
+function guardarTodo(){try{fs.writeFileSync('catalogo.json',JSON.stringify(CATALOGO));}catch(e){}try{fs.writeFileSync('admins.json',JSON.stringify([...ADMIN_OK]));}catch(e){}try{fs.writeFileSync('agotados.json',JSON.stringify([...AGOTADOS]));}catch(e){}try{fs.writeFileSync('gestores.json',JSON.stringify(GESTORES));}catch(e){}try{fs.writeFileSync('comisiones.json',JSON.stringify(COMISIONES));}catch(e){}try{fs.writeFileSync('info-productos.json',JSON.stringify(INFO_PRODUCTOS));}catch(e){}backup_to_github();}
 
-// === BUSCAR EN INTERNET - DuckDuckGo + Pollinations ===
 async function buscarDuckDuckGo(pregunta) {
   try {
-    const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(pregunta)}&format=json&no_html=1&skip_disambig=1`;
-    const res = await fetch(url);
-    const datos = await res.json();
+    var url = 'https://api.duckduckgo.com/?q=' + encodeURIComponent(pregunta) + '&format=json&no_html=1&skip_disambig=1';
+    var res = await fetch(url);
+    var datos = await res.json();
     if (datos.AbstractText) return datos.AbstractText;
     if (datos.RelatedTopics && datos.RelatedTopics.length > 0) {
       if (datos.RelatedTopics[0].Text) return datos.RelatedTopics[0].Text;
@@ -35,19 +35,18 @@ async function buscarDuckDuckGo(pregunta) {
 
 async function preguntarPollinations(pregunta) {
   try {
-    const url = `https://text.pollinations.ai/${encodeURIComponent(pregunta)}?model=openai`;
-    const res = await fetch(url);
+    var url = 'https://text.pollinations.ai/' + encodeURIComponent(pregunta) + '?model=openai';
+    var res = await fetch(url);
     if (res.ok) return (await res.text()).trim();
   } catch (e) {}
-  return "No pude responder eso ahora, ¿me lo preguntas de otra forma?";
+  return 'No pude responder eso ahora, me lo preguntas de otra forma?';
 }
 
 async function buscarEnInternet(pregunta) {
-  const r = await buscarDuckDuckGo(pregunta);
+  var r = await buscarDuckDuckGo(pregunta);
   if (r) return r;
   return await preguntarPollinations(pregunta);
 }
-
 
 let PEDIDOS={};let VALES={};let CONTADOR=0;let ACTUALIZANDO={};let PIDIENDO_NOMBRE=new Set();let ELIGIENDO_ALMACEN=new Set();
 let PENDIENTES_INFO={};
