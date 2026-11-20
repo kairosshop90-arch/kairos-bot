@@ -118,7 +118,7 @@ await send(respuestaInternet);
   await sock.sendMessage(GRUPO_INFO,{text:`❓ INFO PEDIDA: ${prod}\nLa pidió: ${GESTORES[from]||nombreGestor}\n\nSi tienen la info, manden:\ninfo ${prod} // su info`});
   return;
 }
-if(text==='ver info'){let keys=Object.keys(INFO_PRODUCTOS);if(keys.length===0){var r = await buscarEnInternet('Informacion de ' + rawText); await send(r); return;}await send('INFO GUARDADA ('+keys.length+'):\n\n'+keys.map(k=>'• '+k).join('\n'));return;}
+if(text==='ver info'){let keys=Object.keys(INFO_PRODUCTOS);if(keys.length===0){try{var r = await buscarEnInternet('Informacion de ' + rawText); await send(r || 'No encontre info de eso ahora');}catch(e){await send('No pude buscar eso ahora, intenta de nuevo');} return;}await send('INFO GUARDADA ('+keys.length+'):\n\n'+keys.map(k=>'• '+k).join('\n'));return;}
 if(text.startsWith('borrar info ')){let k=rawText.substring(12).trim().toUpperCase();if(INFO_PRODUCTOS[k]){delete INFO_PRODUCTOS[k];guardarTodo();await send('Borrada info de '+k);}else await send('No tenia info guardada de '+k);return;}
 if(text==='soy admin kairos123'){ADMIN_OK.add(from);guardarTodo();await send('Bienvenido Admin KAIROS.\nComandos: actualizar almacen 1, quitar producto X, agotado X, ver catalogo');return;}
 if(text==='tasa'||text==='toque'){await send('El Toque base: '+TASA_BASE+'\nAlmacén 1 (Toque +5): '+TASA_A1+' MN\nAlmacén 2 (Toque +10): '+TASA_A2+' MN\nEUR = USD mismo número');return;}
