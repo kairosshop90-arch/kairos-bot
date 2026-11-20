@@ -42,7 +42,13 @@ function calcularMensajeria(almacen,direccion,productos){const tabla=String(alma
 function comisionDe(prods){let t=0;for(const p of prods)t+=esGrande(p.nombre)?2500:1200;return t;}
 function totalMNProductos(prods){return prods.reduce((s,p)=>s+p.precioUSD*p.cant*tasaPorAlmacen(p.almacen),0);}
 function buscarProductoEnAlmacen(almacen,txt){let lista=listaPorAlmacen(almacen);txt=txt.trim();if(/^[0-9]+$/.test(txt)){let idx=parseInt(txt)-1;return lista[idx]||null;}let clave=txt.toUpperCase();if(CATALOGO[clave]&&String(CATALOGO[clave].almacen)===String(almacen))return CATALOGO[clave];for(const p of lista){if(p.nombre.toUpperCase().includes(clave)||clave.includes(p.nombre.toUpperCase().split(' ')[0]))return p;}return null;}
-async function buscarInfoInternet(nombre){let clave=nombre.toUpperCase().trim();if(INFO_PRODUCTOS[clave]){return 'INFO GUARDADA DE: '+nombre.toUpperCase()+'\n\n'+INFO_PRODUCTOS[clave].texto+'\n\nFuente: '+INFO_PRODUCTOS[clave].fuente+'\nGuardada el: '+INFO_PRODUCTOS[clave].fecha;}try{let wiki=await fetch('https://es.wikipedia.org/api/rest_v1/page/summary/'+encodeURIComponent(nombre));let w=await wiki.json();let textoWiki=w.extract?w.extract.slice(0,1200):'';let ddg=await fetch('https://api.duckduckgo.com/?q='+encodeURIComponent(nombre+' especificaciones')+'&format=json&no_html=1');let d=await ddg.json();let textoDDG=d.AbstractText||d.RelatedTopics?.[0]?.Text||'';let link=d.AbstractURL||'https://es.wikipedia.org/wiki/'+encodeURIComponent(nombre);let textoFinal='';if(textoWiki)textoFinal+=textoWiki+'\n\n';if(textoDDG)textoFinal+='DATO EXTRA:\n'+textoDDG+'\n\n';if(!textoFinal)textoFinal='No encontre detalles en internet, pero es un producto de KAIROS: '+nombre;INFO_PRODUCTOS[clave]={texto:textoFinal,fuente:link,fecha:new Date().toLocaleDateString('es-CU',{day:'2-digit',month:'2-digit',year:'numeric'})};guardarTodo();return 'INFO NUEVA DE: '+nombre.toUpperCase()+'\n\n'+textoFinal+'\nFuente: '+link+'\n\nYa quedo guardada para la proxima vez.';}catch(e){return 'No pude buscar info de '+nombre+' ahora. Intenta de nuevo.';}}
+async function buscarInfoInternet(nombre){
+  let clave = nombre.toUpperCase().trim();
+  if(INFO_PRODUCTOS[clave]){
+    return 'INFO producto: ' + nombre.toUpperCase() + '\ncaracteristicas: ' + INFO_PRODUCTOS[clave].texto;
+  }
+  return 'No tengo info guardada de ' + nombre.toUpperCase() + '.\n\nSi tienes la info, manda en el grupo:\nINFO ' + nombre.toUpperCase() + ' : caracteristicas';
+}
 
 
 
