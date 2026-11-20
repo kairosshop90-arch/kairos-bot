@@ -20,9 +20,8 @@ try{if(fs.existsSync('info-productos.json'))INFO_PRODUCTOS=JSON.parse(fs.readFil
  
 function guardarTodo(){try{fs.writeFileSync('catalogo.json',JSON.stringify(CATALOGO));}catch(e){}try{fs.writeFileSync('admins.json',JSON.stringify([...ADMIN_OK]));}catch(e){}try{fs.writeFileSync('agotados.json',JSON.stringify([...AGOTADOS]));}catch(e){}try{fs.writeFileSync('gestores.json',JSON.stringify(GESTORES));}catch(e){}try{fs.writeFileSync('comisiones.json',JSON.stringify(COMISIONES));}catch(e){}try{fs.writeFileSync('info-productos.json',JSON.stringify(INFO_PRODUCTOS));}catch(e){}backup_to_github();}
 
-async function buscarEnInternet(pregunta) {
-  return await preguntarPollinations(pregunta);
-}  try {
+async function buscarDuckDuckGo(pregunta) {
+  try {
     var url = 'https://api.duckduckgo.com/?q=' + encodeURIComponent(pregunta) + '&format=json&no_html=1&skip_disambig=1';
     var res = await fetch(url);
     var datos = await res.json();
