@@ -17,36 +17,7 @@ try{if(fs.existsSync('agotados.json'))JSON.parse(fs.readFileSync('agotados.json'
 try{if(fs.existsSync('gestores.json'))GESTORES=JSON.parse(fs.readFileSync('gestores.json'));}catch(e){}
 try{if(fs.existsSync('comisiones.json'))COMISIONES=JSON.parse(fs.readFileSync('comisiones.json'));}catch(e){}
 try{if(fs.existsSync('info-productos.json'))INFO_PRODUCTOS=JSON.parse(fs.readFileSync('info-productos.json'));}catch(e){}
- 
 function guardarTodo(){try{fs.writeFileSync('catalogo.json',JSON.stringify(CATALOGO));}catch(e){}try{fs.writeFileSync('admins.json',JSON.stringify([...ADMIN_OK]));}catch(e){}try{fs.writeFileSync('agotados.json',JSON.stringify([...AGOTADOS]));}catch(e){}try{fs.writeFileSync('gestores.json',JSON.stringify(GESTORES));}catch(e){}try{fs.writeFileSync('comisiones.json',JSON.stringify(COMISIONES));}catch(e){}try{fs.writeFileSync('info-productos.json',JSON.stringify(INFO_PRODUCTOS));}catch(e){}backup_to_github();}
-
-async function buscarDuckDuckGo(pregunta) {
-  try {
-    var url = 'https://api.duckduckgo.com/?q=' + encodeURIComponent(pregunta) + '&format=json&no_html=1&skip_disambig=1';
-    var res = await fetch(url);
-    var datos = await res.json();
-    if (datos.AbstractText) return datos.AbstractText;
-    if (datos.RelatedTopics && datos.RelatedTopics.length > 0) {
-      if (datos.RelatedTopics[0].Text) return datos.RelatedTopics[0].Text;
-    }
-  } catch (e) {}
-  return null;
-}
-
-async function preguntarPollinations(pregunta) {
-  try {
-    var url = 'https://text.pollinations.ai/' + encodeURIComponent(pregunta) + '?model=openai';
-    var res = await fetch(url);
-    if (res.ok) return (await res.text()).trim();
-  } catch (e) {}
-  return 'No pude responder eso ahora, me lo preguntas de otra forma?';
-}
-
-async function buscarEnInternet(pregunta) {
-  var r = await buscarDuckDuckGo(pregunta);
-  if (r) return r;
-  return await preguntarPollinations(pregunta);
-}
 
 let PEDIDOS={};let VALES={};let CONTADOR=0;let ACTUALIZANDO={};let PIDIENDO_NOMBRE=new Set();let ELIGIENDO_ALMACEN=new Set();
 let PENDIENTES_INFO={};
@@ -113,12 +84,11 @@ if(!from.endsWith('@g.us')&&(text.startsWith('info ')||text.startsWith('buscar '
   if(encontrada){await send(`📦 *${encontrada} - KAIROS*\n\n${INFO_PRODUCTOS[encontrada].texto}`);return;}
   // Si no la tiene, el BOT pregunta en el grupo de dudas
   PENDIENTES_INFO[clave]=from;
- var respuestaInternet = await buscarEnInternet('Informacion de ' + nombreProd);
-await send(respuestaInternet);
+  await send(`No la tengo guardada todavía, ya pregunté en el grupo de dudas de KAIROS. En cuanto el admin la ponga te la mando aquí mismo.`);
   await sock.sendMessage(GRUPO_INFO,{text:`❓ INFO PEDIDA: ${prod}\nLa pidió: ${GESTORES[from]||nombreGestor}\n\nSi tienen la info, manden:\ninfo ${prod} // su info`});
   return;
 }
-if(text==='ver info'){let keys=Object.keys(INFO_PRODUCTOS);if(keys.length===0){try{var r = await buscarEnInternet('Informacion de ' + rawText); await send(r || 'No encontre info de eso ahora');}catch(e){await send('No pude buscar eso ahora, intenta de nuevo');} return;}await send('INFO GUARDADA ('+keys.length+'):\n\n'+keys.map(k=>'• '+k).join('\n'));return;}
+if(text==='ver info'){let keys=Object.keys(INFO_PRODUCTOS);if(keys.length===0){await send('Todavia no hay info guardada. Escribe: info + producto');return;}await send('INFO GUARDADA ('+keys.length+'):\n\n'+keys.map(k=>'• '+k).join('\n'));return;}
 if(text.startsWith('borrar info ')){let k=rawText.substring(12).trim().toUpperCase();if(INFO_PRODUCTOS[k]){delete INFO_PRODUCTOS[k];guardarTodo();await send('Borrada info de '+k);}else await send('No tenia info guardada de '+k);return;}
 if(text==='soy admin kairos123'){ADMIN_OK.add(from);guardarTodo();await send('Bienvenido Admin KAIROS.\nComandos: actualizar almacen 1, quitar producto X, agotado X, ver catalogo');return;}
 if(text==='tasa'||text==='toque'){await send('El Toque base: '+TASA_BASE+'\nAlmacén 1 (Toque +5): '+TASA_A1+' MN\nAlmacén 2 (Toque +10): '+TASA_A2+' MN\nEUR = USD mismo número');return;}
@@ -143,15 +113,8 @@ if(esLouis&&me){const nv=parseInt(me[1],10);const v=VALES[nv];if(!v){await send(
 if(text.includes('hola')||text.includes('buenas')||text.includes('bendecido')||text.includes('hey')||text.includes('buenos dias')||text.includes('buenas tardes')){delete PEDIDOS[from];ELIGIENDO_ALMACEN.delete(from);await send('Holaa Bienvenido a *KAIROS*\n\nSoy tu asistente, el que te ayuda a crear los vales para la tienda.\n\nYo me encargo de:\nCrear tus vales\nMandarlo a Louis\nCalcularte la mensajeria y el total\n\nPara empezar, escribe:\n*pedido* para hacer un pedido\n*mis vales* para ver tus vales\n*registrarme* si eres nuevo\n\nEmpezamos un pedido?');return;}}
 if(text==='catálogo'||text==='catalogo'){ELIGIENDO_ALMACEN.add(from);delete PEDIDOS[from];await send('¿De qué almacén quieres?\n\n1. Almacén 1\n2. Almacén 2\n\nEscribe 1 o 2');return;}
 if(ELIGIENDO_ALMACEN.has(from)){if(text==='1'||text==='2'||text.includes('almacen 1')||text.includes('almacen 2')){let a=text.includes('2')?'2':'1';ELIGIENDO_ALMACEN.delete(from);PEDIDOS[from]={gestor:from,gestorNombre:GESTORES[from]||nombreGestor,productos:[],paso:'elegir_producto',actual:0,almacenActual:a};await send(textoCatalogoAlmacen(a)+'\nEscribe el numero o nombre del producto:');return;}else{await send('Escribe 1 para Almacén 1 o 2 para Almacén 2');return;}}
-    
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    if(!PEDIDOS[from]||PEDIDOS[from].paso==='elegir_producto'){
-  if(!PEDIDOS[from]){
-    // Si no está pidiendo, no es catalogo ni comando, busca en internet
-    const respuesta = await buscarEnInternet(rawText);
-    await send(respuesta);
-    return;
-}let ped0=PEDIDOS[from];let prod=buscarProductoEnAlmacen(ped0.almacenActual,rawText);if(prod){if(AGOTADOS.has(prod.nombre.toUpperCase())){await send('Ese producto esta AGOTADO.');return;}ped0.productos.push({nombre:prod.nombre,precioUSD:prod.precioUSD,cant:0,almacen:prod.almacen});ped0.actual=ped0.productos.length-1;ped0.paso='cantidad';let extra='';let NL=String.fromCharCode(10);if(INFO_PRODUCTOS[prod.nombre.toUpperCase()])extra=NL+NL+'INFO GUARDADA:'+NL+INFO_PRODUCTOS[prod.nombre.toUpperCase()].texto.slice(0,800);await send(prod.nombre+' - '+prod.precioUSD+' USD (Almacen '+prod.almacen+')'+extra+NL+NL+'Cuantos quieres? Ej: 2');return;}else{await send('No encontre ese producto en Almacen '+ped0.almacenActual+'.'+NL+textoCatalogoAlmacen(ped0.almacenActual));return;}}
-   const ped=PEDIDOS[from];if(ped){
+if(!PEDIDOS[from]||PEDIDOS[from].paso==='elegir_producto'){if(!PEDIDOS[from]){await send('Escribe *catalogo* primero');return;}let ped0=PEDIDOS[from];let prod=buscarProductoEnAlmacen(ped0.almacenActual,rawText);if(prod){if(AGOTADOS.has(prod.nombre.toUpperCase())){await send('Ese producto esta AGOTADO.');return;}ped0.productos.push({nombre:prod.nombre,precioUSD:prod.precioUSD,cant:0,almacen:prod.almacen});ped0.actual=ped0.productos.length-1;ped0.paso='cantidad';let extra='';if(INFO_PRODUCTOS[prod.nombre.toUpperCase()])extra='\n\nINFO GUARDADA:\n'+INFO_PRODUCTOS[prod.nombre.toUpperCase()].texto.slice(0,800);await send(prod.nombre+' - '+prod.precioUSD+' USD (Almacén '+prod.almacen+')'+extra+'\n\nCuantos quieres? Ej: 2');return;}else{await send('No encontre ese producto en Almacén '+ped0.almacenActual+'.\n'+textoCatalogoAlmacen(ped0.almacenActual));return;}}
+const ped=PEDIDOS[from];if(ped){
 if(ped.paso==='cantidad'){const cant=parseInt(text);if(isNaN(cant)||cant<=0){await send('Pon un numero, ej: 2');return;}ped.productos[ped.actual].cant=cant;ped.paso='otra';await send('Quieres otra cosa? Escribe *SI* o *NO*');return;}
 if(ped.paso==='otra'){if(text==='no'){ped.paso='datos';await send('Perfecto. Dime:\nNombre Apellido Carnet\nEj: Juan Perez 12345678901');return;}if(text.startsWith('si')){ped.paso='elegir_almacen_otro';await send('¿Del mismo almacén o del otro?\n\n1. Mismo almacén '+ped.almacenActual+'\n2. Cambiar al otro almacén\n\nEscribe 1 o 2');return;}await send('Escribe SI o NO');return;}
 if(ped.paso==='elegir_almacen_otro'){let nuevoA=ped.almacenActual;if(text==='2'||text.includes('cambiar')||text.includes('otro'))nuevoA=ped.almacenActual==='1'?'2':'1';if(text==='1'||text==='2'||text.includes('mismo')||text.includes('cambiar')||text.includes('otro')){ped.almacenActual=nuevoA;ped.paso='elegir_producto';await send(textoCatalogoAlmacen(nuevoA)+'\nEscribe el numero o nombre del otro producto:');return;}await send('Escribe 1 mismo almacén o 2 cambiar');return;}
