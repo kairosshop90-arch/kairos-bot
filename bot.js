@@ -1,131 +1,329 @@
-const http=require('http');const QRCode=require('qrcode');const fs=require('fs');let ULTIMO_QR='';
-async function backup_to_github(){try{const token=process.env.GITHUB_TOKEN;const repo=process.env.GITHUB_REPO;if(!token||!repo)return;const datos={catalogo:CATALOGO,admins:[...ADMIN_OK],agotados:[...AGOTADOS],gestores:GESTORES,vales:VALES,contador:CONTADOR,comisiones:COMISIONES,info_productos:INFO_PRODUCTOS,fecha:new Date().toISOString()};const content=Buffer.from(JSON.stringify(datos,null,2)).toString('base64');const url=`https://api.github.com/repos/${repo}/contents/kairos-backup.json`;const headers={'Authorization':`token ${token}`,'Accept':'application/vnd.github.v3+json','User-Agent':'kairos-bot'};let sha=null;const getRes=await fetch(url,{headers});if(getRes.ok){const j=await getRes.json();sha=j.sha;}const body={message:`Backup auto ${new Date().toLocaleString('es-CU')}`,content};if(sha)body.sha=sha;await fetch(url,{method:'PUT',headers,body:JSON.stringify(body)});}catch(e){console.log('Error backup:',e.message);}}
-http.createServer(async(req,res)=>{if(req.url==='/qr'){if(!ULTIMO_QR){res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});res.end('<h1>Aun no hay QR, espera 20 seg y recarga</h1><a href="/qr">Recargar</a>');return;}const img=await QRCode.toDataURL(ULTIMO_QR);res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});res.end('<h1>KAIROS - Escanea el QR</h1><img src="'+img+'" style="width:350px">');return;}res.writeHead(200,{'Content-Type':'text/plain; charset=utf-8'});res.end('KAIROS OK - Ve a /qr para vincular');}).listen(process.env.PORT||10000,()=>console.log('Puerto abierto'));
-const {default:makeWASocket,useMultiFileAuthState,DisconnectReason}=require('@whiskeysockets/baileys');const pino=require('pino');
-const LOUIS_JID='5356947882@s.whatsapp.net';
-const GRUPO_INFO = '120363414152883390@g.us';
-const LOUIS_LID='132624865579031@lid';
-const GRUPO_LOCAL='120363417801594416@g.us';
-const GRUPO_MENSAJERIA='120363419483851412@g.us';
-const DIRECCIONES={1:'Calle 1ra / 2da y 4ta No.23308. Altura del Mirador',2:'Calle 2da #18532 / E y D. Luyano Moderno, San Miguel del Padron',3:'En espera de direccion'};
+// ============ BOT KAIROS - COMPLETO ============
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const fs = require('fs');
+const pino = require('pino');
 
-let CATALOGO={};let AGOTADOS=new Set();let ADMIN_OK=new Set();let GESTORES={};let COMISIONES={};let INFO_PRODUCTOS={};
-try{if(fs.existsSync('catalogo.json'))CATALOGO=JSON.parse(fs.readFileSync('catalogo.json'));}catch(e){}
-try{if(fs.existsSync('admins.json'))JSON.parse(fs.readFileSync('admins.json')).forEach(id=>ADMIN_OK.add(id));}catch(e){}
-ADMIN_OK.add(LOUIS_JID);ADMIN_OK.add(LOUIS_LID);
-try{if(fs.existsSync('agotados.json'))JSON.parse(fs.readFileSync('agotados.json')).forEach(x=>AGOTADOS.add(x));}catch(e){}
-try{if(fs.existsSync('gestores.json'))GESTORES=JSON.parse(fs.readFileSync('gestores.json'));}catch(e){}
-try{if(fs.existsSync('comisiones.json'))COMISIONES=JSON.parse(fs.readFileSync('comisiones.json'));}catch(e){}
-try{if(fs.existsSync('info-productos.json'))INFO_PRODUCTOS=JSON.parse(fs.readFileSync('info-productos.json'));}catch(e){}
-function guardarTodo(){try{fs.writeFileSync('catalogo.json',JSON.stringify(CATALOGO));}catch(e){}try{fs.writeFileSync('admins.json',JSON.stringify([...ADMIN_OK]));}catch(e){}try{fs.writeFileSync('agotados.json',JSON.stringify([...AGOTADOS]));}catch(e){}try{fs.writeFileSync('gestores.json',JSON.stringify(GESTORES));}catch(e){}try{fs.writeFileSync('comisiones.json',JSON.stringify(COMISIONES));}catch(e){}try{fs.writeFileSync('info-productos.json',JSON.stringify(INFO_PRODUCTOS));}catch(e){}backup_to_github();}
+// ===== CONFIG =====
+const GRUPO_INFO = '120207401234567890@g.us'; // <-- PON AQUÍ EL ID REAL DE TU GRUPO DE DUDAS
+const GRUPO_PEDIDOS = '120207409876543210@g.us'; // <-- PON AQUÍ EL ID DE TU GRUPO DE PEDIDOS SI LO USAS
 
-let PEDIDOS={};let VALES={};let CONTADOR=0;let ACTUALIZANDO={};let PIDIENDO_NOMBRE=new Set();let ELIGIENDO_ALMACEN=new Set();
-let PENDIENTES_INFO={};
-let TASA_BASE=935;let TASA_A1=940;let TASA_A2=945;let TASA_USD=945;let TASA_EUR=945;
-async function actualizarTasa(){try{const r=await fetch('https://api.eltoque.com/v1/trmi');const j=await r.json();if(j?.tasa)TASA_BASE=Math.round(j.tasa);}catch(e){}TASA_A1=TASA_BASE+5;TASA_A2=TASA_BASE+10;TASA_USD=TASA_A2;TASA_EUR=TASA_A2;console.log('Tasa: Base '+TASA_BASE+' / A1 '+TASA_A1+' / A2 '+TASA_A2);}
-actualizarTasa();setInterval(actualizarTasa,15*60*1000);
+const DIRECCIONES = {
+  1: 'Calle 1ra / 2da y 4ta No.23308. Altura del Mirador',
+  2: 'Calle 2da #18532 / E y D. Luyano Moderno, San Miguel del Padron',
+  3: 'En espera de direccion'
+};
 
-function tasaPorAlmacen(a){return String(a)==='1'?TASA_A1:TASA_A2;}
-function listaPorAlmacen(a){return Object.values(CATALOGO).filter(p=>String(p.almacen)===String(a));}
-function textoCatalogoAlmacen(a){let lista=listaPorAlmacen(a);let t='--- ALMACEN '+a+' ---\n';if(lista.length===0)t+='(Vacio)\n';else lista.forEach((p,i)=>{t+=(i+1)+'. '+p.nombre+' - '+p.precioUSD+' USD'+(AGOTADOS.has(p.nombre.toUpperCase())?' AGOTADO':'')+'\n';});return t;}
+let TASA_USD = 450;
+let TASA_EUR = 500;
 
-const MENSAJERIA_A1={"san miguel del padron":1500,"jacomino":1500,"diezmero":1500,"san francisco de paula":1500,"virgen del camino":1500,"juanelo":1500,"la rosalia":1500,"la fernanda":1500,"barrio obrero":1500,"monterrey":1500,"vista hermosa":1500,"san matias":1500,"la cuevita":1500,"alturas de luyano":1500,"rocafort":1500,"california":1500,"carretera vieja":1800,"nalon":1800,"naranjo":1800,"la hata":1800,"mikito":1800,"roble":1800,"d'beche":1800,"chibas":1800,"villa i":1800,"villa ii":1800,"mañana":1800,"habana nueva":1800,"reparto escala":2100,"policlinico a. ortiz":2100,"cementerio judio":2100,"paradero":2100,"minas":2300,"barreras":2300,"peñalver":3100,"bacuranao":3100,"santa fe":3100,"loma-modelo":1900,"guaicanamar":1900,"casa blanca":2400,"centro del cotorro":2100,"loteria":2100,"san pedro":2100,"magdalena-torriente":2400,"alberro":2400,"cuatro caminos":3100,"santa maria del rosario":3600,"monaco":1900,"luyano":1900,"vibora":1900,"sta. catalina":1900,"santos suarez":1900,"sevillano":1900,"lawton":1900,"vista alegre":1900,"jesus del monte":1900,"tamarindo":1900,"acosta":1900,"mantilla":1900,"parraga":1900,"poey":1900,"santa amalia":1900,"la palma":1900,"vibora park":1900,"callejas":1900,"la güinera":2100,"los pinos":2100,"reparto electrico":2100,"calvario":2100,"fraternidad":2100,"las guasimas":3400,"managua":3900,"cayo hueso":1900,"dragones":1900,"barrio chino":1900,"los sitios":1900,"pueblo nuevo":1900,"colon":1900,"belen":1900,"san isidro":1900,"prado":1900,"catedral":1900,"tallapiedra":1900,"centro habana":1900,"habana vieja":1900,"latinoamericano":1900,"pilar-atares":1900,"palatino":1900,"canal":1900,"las cañas":1900,"casino deportivo":1900,"santa catalina":1900,"ayestaran":1900,"cerro":1900,"vedado":2100,"nuevo vedado":2100,"rampa":2100,"principe":2100,"puentes grandes":2100,"el carmelo":2100,"alturas del vedado":2100,"plaza":2100,"pogolotti":2600,"los quemados":2600,"los pocitos":2600,"santa felicia":2600,"el palmar":2600,"zamora-coco solo":2600,"cai los angeles":2600,"marianao":2600,"alturas de la lisa":2600,"arimao":2600,"la coronela":2600,"versalles":2600,"balcon":2600,"arroyo arenas":4300,"san agustin":4300,"valle grande":4300,"bello 26":4300,"cinco palmas":4300,"el cano":4300,"la novia del mediodia":4300,"punta brava":5900,"reparto barbosa":5900,"la lisa":2600,"miramar":2400,"almendares":2400,"kohly":2400,"la ceiba":2400,"buenavista":2400,"la sierra":2400,"querejeta":2400,"nautico":2900,"cubanacan":2900,"atabey":2900,"siboney":2900,"flores":2900,"jaimanitas":6600,"santa fe playa":6600,"playa baracoa":7600,"playa":2400,"camilo cienfuegos":2500,"bahia":2500,"villa panamericana":2500,"cojimar":2500,"alamar":2500,"antonio guiteras":2500,"guanabo":4000,"boca ciega":4000,"campo florido":4400,"santa cruz del norte":8100,"san jose de las lajas":6300,"ponce":2600,"trigal":2600,"la fortuna":2600,"aldabo":2600,"altahabana":2600,"embil":2600,"miraflores":2600,"capdevila":2600,"reloj club":2600,"pte. 100 y boyeros":2600,"armada":2600,"cujae":3600,"berenguer":3600,"fontanar":3600,"rio verde":3600,"mazorra":3600,"abel santamaria":4100,"1.º de mayo":4100,"rancho boyeros":4100,"wajay":4100,"el chico":4100,"baluarte":4100,"aeropuerto":4100,"lugardita":4100,"pediatrico":4100,"mulgoba":4400,"santiago de las vegas":4400,"nuevo santiago":4400,"boyeros":2600,"melena del sur":7600,"san antonio de los baños":7600,"güines":7600,"batabano":7600,"güira de melena":10600,"madruga":13600};
-const MENSAJERIA_A2={"san miguel":1000,"san miguel del padron":1000,"san miguel entrincado":1500,"guanabacoa":2000,"via blanca":2000,"debeche":2000,"reparto mañana":2000,"centro guanabacoa":2000,"roble":2500,"jata":2500,"mikito":2500,"naranjo":2500,"puente de santa fe":3000,"barreras":4000,"minas":4000,"campo florido":5000,"regla":2000,"casa blanca":2500,"bahia":2500,"cojimar":2500,"villa panamericana":2500,"alamar":2500,"alamar zona 17":3000,"alamar zona 18":3000,"alamar micro x":3000,"camilo":2500,"camilo cienfuegos":2500,"cotorro":2500,"cotorro centro":2500,"cotorro paradero":3000,"santa maria del rosario":3500,"al berro":3500,"loma de tierra":3500,"cuatro caminos":4000,"diez de octubre":2000,"vibora":2000,"monaco":2000,"santo suarez":2000,"sevillano":2000,"lawton":2000,"arroyo naranjo":2500,"mantilla":2500,"parraga":2500,"palma":2500,"la palma":2500,"puente de calabazar":3000,"reparto electrico":2500,"managua":4000,"las guasimas":3500,"centro habana":2000,"habana vieja":2000,"cerro":2000,"casino deportivo":2500,"ayestaran":2500,"boyero":2500,"camagüey":2500,"vedado":2000,"plaza":2000,"playa":3000,"playa antes del paradero":3000,"playa despues del paradero":3500,"jaimanita":4000,"jaimanitas":4000,"santa fe":4500,"santa fe playa":4500,"marianao":3500,"la lisa":3500,"la lisa hasta 222":3500,"la lisa despues de 222":4000,"alturas de la lisa":3500,"punta brava":5000,"valle grande":5000,"arroyo arena":4500,"arroyo arenas":4500,"san agustin":4000,"guanabo":6000,"cien":3000,"aldabo":3000,"cien y aldabo":3000,"alta habana":3000,"altahabana":3000,"boyeros":4000,"santiago de las vegas":4500,"wajay":5000,"el chico":5000};
+// ===== CATALOGO ALMACEN 1 =====
+let CATALOGO = [
+  { nombre: 'Arrocera Estelectric', precioUSD: 27, almacen: 1 },
+  { nombre: 'Arrocera Marwa', precioUSD: 24, almacen: 1 },
+  { nombre: 'Alarma solar', precioUSD: 23, almacen: 1 },
+  { nombre: 'Batidora Desmatt', precioUSD: 28, almacen: 1 },
+  { nombre: 'Bomba de agua Cofix', precioUSD: 38, almacen: 1 },
+  { nombre: 'Bocina Chiquita', precioUSD: 10, almacen: 1 },
+  { nombre: 'Bicicleta 20', precioUSD: 92, almacen: 1 },
+  { nombre: 'Bocina mediana', precioUSD: 63, almacen: 1 },
+  { nombre: 'Bocina grande', precioUSD: 89, almacen: 1 },
+  { nombre: 'Cocina eléctrica 1h Premier', precioUSD: 15, almacen: 1 },
+  { nombre: 'Cocina eléctrica 2h', precioUSD: 20, almacen: 1 },
+  { nombre: 'Cocina infrarrojo Marwa', precioUSD: 31, almacen: 1 },
+  { nombre: 'Cocina infrarrojo Eko', precioUSD: 31, almacen: 1 },
+  { nombre: 'Cocina de inducción 1h', precioUSD: 25, almacen: 1 },
+  { nombre: 'Cocina de inducción 2h', precioUSD: 47, almacen: 1 },
+  { nombre: 'Colchón EON', precioUSD: 77, almacen: 1 },
+  { nombre: 'Cafetera eléctrica Maf', precioUSD: 25.5, almacen: 1 },
+  { nombre: 'Cocina de gas 1h Eko', precioUSD: 20, almacen: 1 },
+  { nombre: 'Cajita descodificadora Gynipot', precioUSD: 27, almacen: 1 },
+  { nombre: 'Estación de energía', precioUSD: 480, almacen: 1 },
+  { nombre: 'Fogón de petróleo', precioUSD: 78, almacen: 1 },
+  { nombre: 'Freidora de aire Deicha', precioUSD: 45, almacen: 1 },
+  { nombre: 'Freidora Eko', precioUSD: 60, almacen: 1 },
+  { nombre: 'Inversor', precioUSD: 320, almacen: 1 },
+  { nombre: 'Juego de cuchillos', precioUSD: 16, almacen: 1 },
+  { nombre: 'Juego de sartén más cazuela', precioUSD: 20, almacen: 1 },
+  { nombre: 'Lavadora semiautomática Eko', precioUSD: 15, almacen: 1 },
+  { nombre: 'Moto eléctrica KVITOVA', precioUSD: 1399, almacen: 1 },
+  { nombre: 'Nevera Royal 3.5 pies', precioUSD: 220, almacen: 1 },
+  { nombre: 'Olla de presión SJT 5lt', precioUSD: 28, almacen: 1 },
+  { nombre: 'Olla de micro presión', precioUSD: 20, almacen: 1 },
+  { nombre: 'Olla multifuncional con evaporera', precioUSD: 40, almacen: 1 },
+  { nombre: 'Planta de soldar Maf', precioUSD: 78, almacen: 1 },
+  { nombre: 'Reina Mimi', precioUSD: 49, almacen: 1 },
+  { nombre: 'TV 43 pulgadas JMD', precioUSD: 255, almacen: 1 },
+  { nombre: 'Ventilador de pared Freshcool', precioUSD: 28, almacen: 1 },
+  { nombre: 'Ventilador recargable de pedestal Cloud', precioUSD: 68, almacen: 1 },
+  { nombre: 'Ventilador recargable J10', precioUSD: 40, almacen: 1 },
+  { nombre: 'Ventilador recargable F6', precioUSD: 32, almacen: 1 },
+  { nombre: 'Triciclo Ktikova', precioUSD: 3100, almacen: 1 },
+  { nombre: 'Bicicleta 26', precioUSD: 110, almacen: 1 },
+];
 
-function buscarMensajeriaTabla(tabla,t){t=t.toLowerCase();let mejor=null;for(const z in tabla){if(t.includes(z)){if(!mejor||z.length>mejor[0].length)mejor=[z,tabla[z]];}}return mejor;}
-function esGrande(n){n=n.toUpperCase();return n.includes('NEVERA')||n.includes('FRIO')||n.includes('FRÍO')||n.includes('PLANTA')||n.includes('EXHIBIDORA')||n.includes('TV');}
-function esTVoBici(n){n=n.toUpperCase();return n.includes('TV')||n.includes('BICICLETA')||n.includes('SMART');}
-function tipoA2(n){n=n.toUpperCase();if(n.includes('EXHIBIDORA'))return 'exhibidora';if(n.includes('NEVERA 11')||n.includes('NEVERA 16'))return 'nevera';if(n.includes('FRIO')||n.includes('FRÍO')){const m=n.match(/(\d+)\s*PIES/);if(m&&parseInt(m[1])>=15)return 'frio15';return 'grande';}if(esGrande(n))return 'grande';return 'normal';}
-function calcularMensajeria(almacen,direccion,productos){const tabla=String(almacen)==='1'?MENSAJERIA_A1:MENSAJERIA_A2;const enc=buscarMensajeriaTabla(tabla,direccion);if(!enc)return{costo:0,zona:'?',detalle:'No encontrada - preguntar'};let base=enc[1];let total=base;let detalle='Base '+enc[0]+': $'+base;let cant=productos.reduce((s,p)=>s+p.cant,0);if(String(almacen)==='1'){if(cant>=4&&cant<=6){total+=1000;detalle+=' + $1,000 (4-6 art)';}if(cant>6){total=base*2;detalle+=' x2 (>6 art)';}let hayGrande=productos.some(p=>esGrande(p.nombre));let hayTV=productos.some(p=>esTVoBici(p.nombre));if(hayGrande){total+=1000;detalle+=' + $1,000 grande';}if(hayTV){total+=500;detalle+=' + $500 TV/Bici';}}else{let tipos=productos.map(p=>tipoA2(p.nombre));if(tipos.includes('frio15')&&productos.length===1&&cant===1){total=base+800;detalle+=' + $800 Frío 15+';return{costo:total,zona:enc[0],detalle};}let duplicar=cant>=3||tipos.includes('grande')||tipos.includes('nevera')||tipos.includes('exhibidora');if(duplicar){total=base*2;detalle+=' x2 (grande / 3+ eq)';}if(tipos.includes('nevera')){total+=500;detalle+=' + $500 Nevera 11/16';}if(tipos.includes('exhibidora')){total+=1000;detalle+=' + $1,000 Exhibidora';}}return{costo:total,zona:enc[0],detalle};}
-function comisionDe(prods){let t=0;for(const p of prods)t+=esGrande(p.nombre)?2500:1200;return t;}
-function totalMNProductos(prods){return prods.reduce((s,p)=>s+p.precioUSD*p.cant*tasaPorAlmacen(p.almacen),0);}
-function buscarProductoEnAlmacen(almacen,txt){let lista=listaPorAlmacen(almacen);txt=txt.trim();if(/^[0-9]+$/.test(txt)){let idx=parseInt(txt)-1;return lista[idx]||null;}let clave=txt.toUpperCase();if(CATALOGO[clave]&&String(CATALOGO[clave].almacen)===String(almacen))return CATALOGO[clave];for(const p of lista){if(p.nombre.toUpperCase().includes(clave)||clave.includes(p.nombre.toUpperCase().split(' ')[0]))return p;}return null;}
+// ===== ESTADO =====
+let INFO_PRODUCTOS = {}; // { "ARROCERA MARWA": {texto, fuente, fecha} }
+let PENDIENTES_INFO = {}; // { "ARROCERA MARWA": gestorJid }
+let PEDIDOS = {};
 
-async function start(){const{state,saveCreds}=await useMultiFileAuthState('sesion-kairos');const sock=makeWASocket({logger:pino({level:'silent'}),auth:state});sock.ev.on('creds.update',saveCreds);sock.ev.on('connection.update',(u)=>{if(u.qr){ULTIMO_QR=u.qr;console.log('QR NUEVO - VE A /qr');}if(u.connection==='close'){const rec=u.lastDisconnect?.error?.output?.statusCode!==DisconnectReason.loggedOut;if(rec)start();}else if(u.connection==='open'){console.log('KAIROS CONECTADO');ULTIMO_QR='';}});sock.ev.on('messages.upsert',async({messages})=>{const m=messages[0];if(!m.message||m.key.fromMe)return;const from=m.key.remoteJid;const rawText=(m.message.conversation||m.message.extendedTextMessage?.text||'').trim();const quienHabla=m.key.participant||m.participant||from;const nombreGestor=m.pushName||from;const text=rawText.toLowerCase().trim();const send=async(t)=>{await sock.sendMessage(from,{text:t});};const esLouis=from===LOUIS_JID||from===LOUIS_LID||quienHabla===LOUIS_JID||quienHabla===LOUIS_LID;const esAdmin=ADMIN_OK.has(from)||ADMIN_OK.has(quienHabla)||esLouis;
-
-if(from.endsWith('@g.us')){
-  const esLouisGrupo=quienHabla===LOUIS_JID||quienHabla===LOUIS_LID||quienHabla.includes('5356947882')||quienHabla.includes('132624865579031');
-  const mcGrupo=rawText.match(/kairos[-\s]?(\d+)\s+confirmado/i);
-  const esInfoGrupo=from===GRUPO_INFO&&text.startsWith('info ');
-  const esInfoMasiva=from===GRUPO_INFO&&text.startsWith('info masiva');
-  if(esInfoGrupo||esInfoMasiva){ /* deja pasar, se maneja abajo */ }
-  else if(esLouisGrupo&&mcGrupo){ /* deja pasar */ }
-  else { return; }
+if (fs.existsSync('datos.json')) {
+  try {
+    let d = JSON.parse(fs.readFileSync('datos.json'));
+    if (d.INFO_PRODUCTOS) INFO_PRODUCTOS = d.INFO_PRODUCTOS;
+    if (d.PENDIENTES_INFO) PENDIENTES_INFO = d.PENDIENTES_INFO;
+    if (d.TASA_USD) TASA_USD = d.TASA_USD;
+    if (d.TASA_EUR) TASA_EUR = d.TASA_EUR;
+  } catch (e) {}
 }
 
-if(text==='mi id'){await send('Tu ID es: '+from);return;}
-if(text==='cancelar'||text==='reiniciar'||text==='menu'){delete PEDIDOS[from];delete ACTUALIZANDO[from];PIDIENDO_NOMBRE.delete(from);ELIGIENDO_ALMACEN.delete(from);await send('Listo, borre lo que estabas haciendo. Escribe *catalogo*');return;}
-
-// ===== 1. TU PONES TODA LA INFO - EN GRUPO DE DUDAS =====
-// info masiva + lista completa
-if(from===GRUPO_INFO&&text.startsWith('info masiva')&&esLouis){
-  let lineas=rawText.split('\n').slice(1);let guardados=0;
-  for(let l of lineas){if(!l.includes('//'))continue;let partes=l.split('//');let prod=partes[0].trim().toUpperCase();let txtInfo=partes[1].trim();if(prod&&txtInfo){INFO_PRODUCTOS[prod]={texto:txtInfo,fuente:'Admin en Dudas',fecha:new Date().toLocaleDateString('es-CU')};guardados++;}}
-  guardarTodo();await send(`✅ Cargados ${guardados} productos de una vez. Ya el bot tiene de donde buscar.`);return;
-}
-// info Arrocera Marwa // 1.8L...
-if(from===GRUPO_INFO&&text.startsWith('info ')&&esLouis){
-  let parte=rawText.replace(/^info\s+/i,'').trim();let sepIdx=parte.indexOf('//');if(sepIdx===-1)sepIdx=parte.indexOf(':');if(sepIdx===-1){await send('Para guardar pon: info Nombre // caracteristica');return;}
-  let prod=parte.substring(0,sepIdx).trim().toUpperCase();let txtInfo=parte.substring(sepIdx+2).trim();
-  if(!prod||!txtInfo){await send('Formato: info Nombre // tu info');return;}
-  INFO_PRODUCTOS[prod]={texto:txtInfo,fuente:'Admin en Dudas',fecha:new Date().toLocaleDateString('es-CU',{day:'2-digit',month:'2-digit',year:'numeric'})};guardarTodo();await send('✅ Guardado INFO de '+prod);
-  if(PENDIENTES_INFO[prod]){let g=PENDIENTES_INFO[prod];await sock.sendMessage(g,{text:`📦 *${prod} - KAIROS*\n\n${txtInfo}`});delete PENDIENTES_INFO[prod];await send('Ya se la mandé al gestor que la pidió.');}
-  return;
+function guardarTodo() {
+  fs.writeFileSync('datos.json', JSON.stringify({ INFO_PRODUCTOS, PENDIENTES_INFO, TASA_USD, TASA_EUR }, null, 2));
 }
 
-// ===== 2. GESTOR PREGUNTA AL PRIVADO =====
-// Gestor al privado: info Arrocera Marwa - NUNCA en el grupo
-if(!from.endsWith('@g.us')&&(text.startsWith('info ')||text.startsWith('buscar ')||text.startsWith('informacion '))){
-  let prod=rawText.replace(/^(info|buscar|informacion)\s+/i,'').trim();prod=prod.split('//')[0].split(':')[0].trim();
-  if(!prod){await send('Escribe: info + producto\nEj: info Arrocera Marwa');return;}
-  let clave=prod.toUpperCase();
-  if(INFO_PRODUCTOS[clave]){await send(`📦 *${clave} - KAIROS*\n\n${INFO_PRODUCTOS[clave].texto}`);return;}
-  let encontrada=Object.keys(INFO_PRODUCTOS).find(k=>k.includes(clave)||clave.includes(k));
-  if(encontrada){await send(`📦 *${encontrada} - KAIROS*\n\n${INFO_PRODUCTOS[encontrada].texto}`);return;}
-  // Si no la tiene, el BOT pregunta en el grupo de dudas
-  PENDIENTES_INFO[clave]=from;
-  await send(`No la tengo guardada todavía, ya pregunté en el grupo de dudas de KAIROS. En cuanto el admin la ponga te la mando aquí mismo.`);
-  await sock.sendMessage(GRUPO_INFO,{text:`❓ INFO PEDIDA: ${prod}\nLa pidió: ${GESTORES[from]||nombreGestor}\n\nSi tienen la info, manden:\ninfo ${prod} // su info`});
-  return;
+// ===== FUNCIONES CLAVE - ARREGLO POR NOMBRE, NO POR LUGAR =====
+function normalizar(s) {
+  return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
 }
-if(text==='ver info'){let keys=Object.keys(INFO_PRODUCTOS);if(keys.length===0){await send('Todavia no hay info guardada. Escribe: info + producto');return;}await send('INFO GUARDADA ('+keys.length+'):\n\n'+keys.map(k=>'• '+k).join('\n'));return;}
-if(text.startsWith('borrar info ')){let k=rawText.substring(12).trim().toUpperCase();if(INFO_PRODUCTOS[k]){delete INFO_PRODUCTOS[k];guardarTodo();await send('Borrada info de '+k);}else await send('No tenia info guardada de '+k);return;}
-if(text==='soy admin kairos123'){ADMIN_OK.add(from);guardarTodo();await send('Bienvenido Admin KAIROS.\nComandos: actualizar almacen 1, quitar producto X, agotado X, ver catalogo');return;}
-if(text==='tasa'||text==='toque'){await send('El Toque base: '+TASA_BASE+'\nAlmacén 1 (Toque +5): '+TASA_A1+' MN\nAlmacén 2 (Toque +10): '+TASA_A2+' MN\nEUR = USD mismo número');return;}
-if(text==='mensajeria 1'||text==='mensajeria a1'){let t='MENSAJERÍA ALMACÉN 1\n\n';for(const z in MENSAJERIA_A1)t+=z+': $'+MENSAJERIA_A1[z].toLocaleString()+'\n';t+='\nExtras A1:\n4-6 art: +$1,000\n+6 art: x2\nGrande: +$1,000\nTV/Bici: +$500';await send(t.slice(0,4000));if(t.length>4000)await send(t.slice(4000));return;}
-if(text==='mensajeria 2'||text==='mensajeria a2'){let t='MENSAJERÍA ALMACÉN 2\n\n';for(const z in MENSAJERIA_A2)t+=z+': $'+MENSAJERIA_A2[z].toLocaleString()+'\n';t+='\nExtras A2:\nGrande / 3+ eq: x2\nNevera 11/16: x2 +$500\nExhibidora: x2 +$1,000\nFrío 15+ solo: +$800';await send(t.slice(0,4000));if(t.length>4000)await send(t.slice(4000));return;}
-if(text==='mensajeria'){await send('¿Qué listado quieres?\nEscribe:\n*mensajeria 1* - Almacén 1\n*mensajeria 2* - Almacén 2');return;}
-if(text==='comisiones'||text==='comision'){await send('COMISIONES KAIROS\n\nProducto normal: 1,200 MN\nProducto grande: 2,500 MN\nGrande es: Nevera, Frío, Planta, Exhibidora, TV\n\nEj: 2 normales + 1 nevera = 4,900 MN\nPara ver las tuyas: *ver mis comisiones*');return;}
-if(text==='ver mis comisiones'||text==='ver mis comsiones'||text==='mis comisiones'||text==='ver mis camiones'){const mis=COMISIONES[from];if(!mis||!mis.ventas||mis.ventas.length===0){await send('Todavía no tienes comisiones.\nCuando Louis marque tu vale como entregado, aquí te aparece.');return;}let t='MIS COMISIONES - '+(mis.nombre||GESTORES[from]||nombreGestor)+'\n\n';mis.ventas.forEach(v=>{t+=v.fecha+' | KAIROS-'+String(v.numero).padStart(3,'0')+' | '+v.productos+' | +'+v.comision.toLocaleString()+' MN\n';});t+='\nTOTAL ACUMULADO: '+mis.total.toLocaleString()+' MN\nVales: '+mis.ventas.length;await send(t);return;}
-if(esLouis&&(text==='ver comisiones'||text==='ver todas las comisiones')){let t='COMISIONES TODOS LOS GESTORES\n\n';let tot=0;for(const k in COMISIONES){t+=COMISIONES[k].nombre+' ('+k+'): '+COMISIONES[k].total.toLocaleString()+' MN - '+COMISIONES[k].ventas.length+' vales\n';tot+=COMISIONES[k].total;}t+='\nTOTAL A PAGAR: '+tot.toLocaleString()+' MN';await send(t);return;}
-if(esLouis&&text.startsWith('pagar comision ')){const resto=rawText.substring(15).trim();let target=null;for(const k in COMISIONES){if(k.includes(resto)||COMISIONES[k].nombre.toLowerCase().includes(resto.toLowerCase()))target=k;}if(!target){await send('No encontré ese gestor. Usa su número o nombre.');return;}let pagado=COMISIONES[target].total;COMISIONES[target].total=0;COMISIONES[target].ventas=[];guardarTodo();await send('Pagado '+pagado.toLocaleString()+' MN a '+COMISIONES[target].nombre+'. Puesto en 0.');return;}
-if(!esAdmin&&!GESTORES[from]&&!PIDIENDO_NOMBRE.has(from)){PIDIENDO_NOMBRE.add(from);await send('Hola, bienvenido a KAIROS.\nEres nuevo, dime tu nombre completo para guardarte.\nEj: Maria Lopez');return;}
-if(!esAdmin&&PIDIENDO_NOMBRE.has(from)){const nombre=rawText.trim();if(nombre.length<3||nombre.toLowerCase()==='hola'||nombre.toLowerCase()==='catalogo'){await send('Dime tu nombre completo, ej: Maria Lopez');return;}GESTORES[from]=nombre;PIDIENDO_NOMBRE.delete(from);guardarTodo();await send('Perfecto '+nombre+', ya quedaste guardado.\nCada vale que mandes saldra con tu nombre.\n\nEscribe: *catalogo*');return;}
-if(esAdmin&&text.includes('actualizar')){let num='1';if(text.includes('2'))num='2';if(text.includes('3'))num='3';ACTUALIZANDO[from]=num;delete PEDIDOS[from];await send('Vas a actualizar ALMACEN '+num+'\nManda la lista ahora, un producto por linea.\nEj: Arrocera Estelectric -- 27');return;}
-if(esAdmin&&ACTUALIZANDO[from]){const miAlmacen=ACTUALIZANDO[from];for(const k in CATALOGO){if(CATALOGO[k].almacen===miAlmacen)delete CATALOGO[k];}const ag=[];for(const l of rawText.split('\n')){let linea=l.trim();if(!linea)continue;linea=linea.replace(/^[☑️✅✔️•\-\* ]+/u,'').trim();if(!linea)continue;linea=linea.replace(/\(.*?USD.*?\)/gi,'').trim();const mPrecio=linea.match(/(.+?)[\s\-–—]*(\d+(\.\d+)?)\s*(USD|usd)?\s*$/);if(!mPrecio)continue;let nom=mPrecio[1].trim().replace(/[-–—\s]+$/,'').trim();let pre=parseFloat(mPrecio[2]);if(!nom||!pre)continue;const cl=nom.toUpperCase();CATALOGO[cl]={nombre:nom,precioUSD:pre,almacen:miAlmacen};AGOTADOS.delete(cl);ag.push(nom+' - '+pre+' USD');}guardarTodo();await send('Listo. Almacen '+miAlmacen+' actualizado.\n\n'+ag.join('\n'));delete ACTUALIZANDO[from];return;}
-if(esAdmin&&text.startsWith('quitar producto ')){const n=rawText.substring(15).trim().toUpperCase();if(CATALOGO[n]){delete CATALOGO[n];guardarTodo();await send('Quitado: '+n);}else await send('No encontre ese producto.');return;}
-if(esAdmin&&text.startsWith('agotado ')){const n=rawText.substring(8).trim().toUpperCase();AGOTADOS.add(n);guardarTodo();await send(n+' marcado AGOTADO.');return;}
-if(esAdmin&&text==='ver catalogo'){let t='CATALOGO KAIROS\n\n';for(const a of['1','2','3']){t+='--- ALMACEN '+a+' ---\n';for(const k in CATALOGO){if(CATALOGO[k].almacen===a)t+=CATALOGO[k].nombre+' - '+CATALOGO[k].precioUSD+' USD'+(AGOTADOS.has(k)?' AGOTADO':'')+'\n';}t+='\n';}await send(t);return;}
-const mc=rawText.match(/kairos[-\s]?(\d+)\s+confirmado/i);
-if(esLouis&&mc){const nv=parseInt(mc[1],10);const v=VALES[nv];if(!v){await send('No encontre vale '+nv);return;}v.estado='confirmado';const totalMNFinal=totalMNProductos(v.productos);let res='VALE KAIROS-'+String(nv).padStart(3,'0')+' CONFIRMADO\n\nGestor: '+v.gestorNombre+'\nCliente: '+v.cliente+'\nTelefono cliente: '+v.telefonoCliente+'\nPago: '+v.metodoPago+'\nProductos:\n'+v.productos.map(p=>'- '+p.nombre+' x'+p.cant+' = '+(p.cant*p.precioUSD)+' USD (A'+p.almacen+')').join('\n')+'\nTotal: '+v.totalUSD+' '+v.metodoPago+'\nTotal MN ref: '+totalMNFinal.toLocaleString()+' MN\nMensajeria total: '+v.costoMensajeria+' MN';if(v.tipo==='recogida'){res+='\nRecogida en: '+DIRECCIONES[v.almacen];await sock.sendMessage(GRUPO_LOCAL,{text:res});await sock.sendMessage(v.gestor,{text:'Tu vale KAIROS-'+String(nv).padStart(3,'0')+' CONFIRMADO. Recoger en: '+DIRECCIONES[v.almacen]});}else{res+='\nMensajeria a: '+v.direccion;if(v.detalleMensajeria)res+='\n'+v.detalleMensajeria;await sock.sendMessage(GRUPO_MENSAJERIA,{text:res});await sock.sendMessage(v.gestor,{text:'Tu vale KAIROS-'+String(nv).padStart(3,'0')+' CONFIRMADO. Va por mensajeria.'});}await send('Vale '+nv+' enviado al grupo.');return;}
-const me=rawText.match(/vale\s+kairos[-\s]?(\d+)\s+entregado/i);
-if(esLouis&&me){const nv=parseInt(me[1],10);const v=VALES[nv];if(!v){await send('No encontre vale '+nv);return;}const com=comisionDe(v.productos);if(!COMISIONES[v.gestor])COMISIONES[v.gestor]={nombre:v.gestorNombre,total:0,ventas:[]};if(!COMISIONES[v.gestor].ventas.find(x=>x.numero===nv)){COMISIONES[v.gestor].ventas.push({numero:nv,fecha:new Date().toLocaleDateString('es-CU',{day:'2-digit',month:'2-digit'}),productos:v.productos.map(p=>p.nombre+' x'+p.cant).join(', '),comision:com,totalVale:v.totalUSD});COMISIONES[v.gestor].total+=com;COMISIONES[v.gestor].nombre=v.gestorNombre;guardarTodo();}await sock.sendMessage(v.gestor,{text:'VALE KAIROS-'+String(nv).padStart(3,'0')+' ENTREGADO. Tu comision: '+com+' MN\nTotal acumulado: '+COMISIONES[v.gestor].total.toLocaleString()+' MN\nEscribe *ver mis comisiones* para ver el detalle.'});await send('Entrega notificada. Comision: '+com);return;
-if(text.includes('hola')||text.includes('buenas')||text.includes('bendecido')||text.includes('hey')||text.includes('buenos dias')||text.includes('buenas tardes')){delete PEDIDOS[from];ELIGIENDO_ALMACEN.delete(from);await send('Holaa Bienvenido a *KAIROS*\n\nSoy tu asistente, el que te ayuda a crear los vales para la tienda.\n\nYo me encargo de:\nCrear tus vales\nMandarlo a Louis\nCalcularte la mensajeria y el total\n\nPara empezar, escribe:\n*pedido* para hacer un pedido\n*mis vales* para ver tus vales\n*registrarme* si eres nuevo\n\nEmpezamos un pedido?');return;}}
-if(text==='catálogo'||text==='catalogo'){ELIGIENDO_ALMACEN.add(from);delete PEDIDOS[from];await send('¿De qué almacén quieres?\n\n1. Almacén 1\n2. Almacén 2\n\nEscribe 1 o 2');return;}
-if(ELIGIENDO_ALMACEN.has(from)){if(text==='1'||text==='2'||text.includes('almacen 1')||text.includes('almacen 2')){let a=text.includes('2')?'2':'1';ELIGIENDO_ALMACEN.delete(from);PEDIDOS[from]={gestor:from,gestorNombre:GESTORES[from]||nombreGestor,productos:[],paso:'elegir_producto',actual:0,almacenActual:a};await send(textoCatalogoAlmacen(a)+'\nEscribe el numero o nombre del producto:');return;}else{await send('Escribe 1 para Almacén 1 o 2 para Almacén 2');return;}}
-if(!PEDIDOS[from]||PEDIDOS[from].paso==='elegir_producto'){if(!PEDIDOS[from]){await send('Escribe *catalogo* primero');return;}let ped0=PEDIDOS[from];let prod=buscarProductoEnAlmacen(ped0.almacenActual,rawText);if(prod){if(AGOTADOS.has(prod.nombre.toUpperCase())){await send('Ese producto esta AGOTADO.');return;}ped0.productos.push({nombre:prod.nombre,precioUSD:prod.precioUSD,cant:0,almacen:prod.almacen});ped0.actual=ped0.productos.length-1;ped0.paso='cantidad';let extra='';if(INFO_PRODUCTOS[prod.nombre.toUpperCase()])extra='\n\nINFO GUARDADA:\n'+INFO_PRODUCTOS[prod.nombre.toUpperCase()].texto.slice(0,800);await send(prod.nombre+' - '+prod.precioUSD+' USD (Almacén '+prod.almacen+')'+extra+'\n\nCuantos quieres? Ej: 2');return;}else{await send('No encontre ese producto en Almacén '+ped0.almacenActual+'.\n'+textoCatalogoAlmacen(ped0.almacenActual));return;}}
-const ped=PEDIDOS[from];if(ped){
-if(ped.paso==='cantidad'){const cant=parseInt(text);if(isNaN(cant)||cant<=0){await send('Pon un numero, ej: 2');return;}ped.productos[ped.actual].cant=cant;ped.paso='otra';await send('Quieres otra cosa? Escribe *SI* o *NO*');return;}
-if(ped.paso==='otra'){if(text==='no'){ped.paso='datos';await send('Perfecto. Dime:\nNombre Apellido Carnet\nEj: Juan Perez 12345678901');return;}if(text.startsWith('si')){ped.paso='elegir_almacen_otro';await send('¿Del mismo almacén o del otro?\n\n1. Mismo almacén '+ped.almacenActual+'\n2. Cambiar al otro almacén\n\nEscribe 1 o 2');return;}await send('Escribe SI o NO');return;}
-if(ped.paso==='elegir_almacen_otro'){let nuevoA=ped.almacenActual;if(text==='2'||text.includes('cambiar')||text.includes('otro'))nuevoA=ped.almacenActual==='1'?'2':'1';if(text==='1'||text==='2'||text.includes('mismo')||text.includes('cambiar')||text.includes('otro')){ped.almacenActual=nuevoA;ped.paso='elegir_producto';await send(textoCatalogoAlmacen(nuevoA)+'\nEscribe el numero o nombre del otro producto:');return;}await send('Escribe 1 mismo almacén o 2 cambiar');return;}
-if(ped.paso==='datos'){ped.cliente=rawText;ped.paso='telefono';await send('Perfecto. Ahora dime el TELEFONO del cliente.\nEj: 5351234567');return;}
-if(ped.paso==='telefono'){ped.telefonoCliente=rawText;ped.paso='pago';const totalUSD=ped.productos.reduce((s,p)=>s+p.precioUSD*p.cant,0);const totalMN=totalMNProductos(ped.productos);let resumen='RESUMEN DE TU PEDIDO\n\n';ped.productos.forEach(p=>{resumen+='- '+p.nombre+' x'+p.cant+' = '+(p.precioUSD*p.cant)+' USD (A'+p.almacen+' x'+tasaPorAlmacen(p.almacen)+')\n';});resumen+='\nTotal a pagar, escoge:\n1. USD: '+totalUSD+' USD\n2. EUR: '+totalUSD+' EUR (EUR = USD)\n3. MN: '+totalMN.toLocaleString()+' MN\n\nEscribe: 1, 2 o 3';await send(resumen);return;}
-if(ped.paso==='pago'){if(text==='1'||text.includes('usd')||text.includes('dolar'))ped.metodoPago='USD';else if(text==='2'||text.includes('eur'))ped.metodoPago='EUR';else if(text==='3'||text.includes('mn')||text.includes('cup')||text.includes('peso'))ped.metodoPago='MN';else{await send('Escribe: 1 para USD, 2 para EUR, 3 para MN');return;}ped.paso='tipo';await send('Pago: '+ped.metodoPago+'\n\nMensajeria o recogida?\nEscribe: *mensajeria* o *recogida*');return;}
-if(ped.paso==='tipo'){
-  if(text.includes('recogida')){let almacenes=[...new Set(ped.productos.map(p=>String(p.almacen)))];let textoVales='';for(const a of almacenes){CONTADOR++;let prodsA=ped.productos.filter(p=>String(p.almacen)===a);let totalA=prodsA.reduce((s,p)=>s+p.precioUSD*p.cant,0);let totalMNA=prodsA.reduce((s,p)=>s+p.precioUSD*p.cant*tasaPorAlmacen(a),0);let vale={numero:CONTADOR,gestor:from,gestorNombre:ped.gestorNombre||GESTORES[from]||nombreGestor,cliente:ped.cliente,telefonoCliente:ped.telefonoCliente,metodoPago:ped.metodoPago,productos:prodsA,tipo:'recogida',almacen:a,totalUSD:totalA,costoMensajeria:0};VALES[CONTADOR]=vale;let tv='VALE KAIROS-'+String(CONTADOR).padStart(3,'0')+' (PENDIENTE) - ALMACÉN '+a+'\n\nGestor: '+vale.gestorNombre+'\nCliente: '+vale.cliente+'\nTelefono: '+vale.telefonoCliente+'\nPago: '+vale.metodoPago+'\nProductos:\n'+prodsA.map(p=>'- '+p.nombre+' x'+p.cant+' = '+(p.precioUSD*p.cant)+' USD').join('\n')+'\nTotal: '+totalA+' '+vale.metodoPago+'\nTotal MN: '+totalMNA.toLocaleString()+' MN\nRecogida en:\n'+DIRECCIONES[a]+'\n\nLouis pon: kairos-'+String(CONTADOR).padStart(3,'0')+' confirmado';textoVales+='KAIROS-'+String(CONTADOR).padStart(3,'0')+' (A'+a+') ';await sock.sendMessage(LOUIS_LID,{text:tv});}delete PEDIDOS[from];await send('Pedido mixto partido por almacén.\nVales creados: '+textoVales+'\nEnviados a Louis.');return;}
-  if(text.includes('mensajer')){ped.paso='direccion';await send('Dime la direccion completa y barrio exacto.\nEj: Calle 10 #123, Vedado');return;}await send('Escribe: mensajeria o recogida');return;}
-if(ped.paso==='direccion'){ped.direccion=rawText;ped.paso='nota';await send('Ya casi terminamos 👌\n\n¿Quieres agregar una nota al vale?\nEj: llamar antes, despues de las 2\n\nEscribe tu nota o escribe sin nota');return;}
-if(ped.paso==='nota'){let nota=rawText.trim();if(nota.toLowerCase()==='sin nota'||nota.toLowerCase()==='no'||nota.toLowerCase()==='ninguna'||nota.toLowerCase()==='sin notas')nota='';ped.nota=nota;let almacenes=[...new Set(ped.productos.map(p=>String(p.almacen)))];let totalMens=0;let detalles=[];let textoVales='';for(const a of almacenes){CONTADOR++;let prodsA=ped.productos.filter(p=>String(p.almacen)===a);let totalA=prodsA.reduce((s,p)=>s+p.precioUSD*p.cant,0);let totalMNA=prodsA.reduce((s,p)=>s+p.precioUSD*p.cant*tasaPorAlmacen(a),0);let calc=calcularMensajeria(a,ped.direccion,prodsA);totalMens+=calc.costo;detalles.push('A'+a+': $'+calc.costo+' ('+calc.detalle+')');let vale={numero:CONTADOR,gestor:from,gestorNombre:ped.gestorNombre||GESTORES[from]||nombreGestor,cliente:ped.cliente,telefonoCliente:ped.telefonoCliente,metodoPago:ped.metodoPago,productos:prodsA,tipo:'mensajeria',direccion:ped.direccion,nota:ped.nota,totalUSD:totalA,costoMensajeria:calc.costo,almacen:a,detalleMensajeria:calc.detalle};VALES[CONTADOR]=vale;let tv='VALE KAIROS-'+String(CONTADOR).padStart(3,'0')+' (PENDIENTE) - ALMACÉN '+a+'\n\nGestor: '+vale.gestorNombre+'\nCliente: '+vale.cliente+'\nTelefono: '+vale.telefonoCliente+'\nPago: '+vale.metodoPago+'\nProductos:\n'+prodsA.map(p=>'- '+p.nombre+' x'+p.cant+' = '+(p.precioUSD*p.cant)+' USD').join('\n')+'\nTotal USD/EUR: '+totalA+'\nTotal MN: '+totalMNA.toLocaleString()+' MN\nMensajeria A'+a+': '+calc.costo+' MN ('+calc.detalle+')\nDireccion: '+ped.direccion+(ped.nota?'\n📝 Nota: '+ped.nota:'')+'\n\nLouis pon: kairos-'+String(CONTADOR).padStart(3,'0')+' confirmado';textoVales+='KAIROS-'+String(CONTADOR).padStart(3,'0')+' (A'+a+') ';await sock.sendMessage(LOUIS_LID,{text:tv});}let totalUSD=ped.productos.reduce((s,p)=>s+p.precioUSD*p.cant,0);let totalMN=totalMNProductos(ped.productos);delete PEDIDOS[from];await send('Vales creados: '+textoVales+'\nMensajeria total: '+totalMens.toLocaleString()+' MN\n'+detalles.join('\n')+'\nTotal productos MN: '+totalMN.toLocaleString()+(ped.nota?'\n📝 Nota: '+ped.nota:'')+'\nEnviado a Louis.');return;}
+
+function buscarProducto(clave) {
+  let nClave = normalizar(clave);
+  let keys = Object.keys(INFO_PRODUCTOS);
+  // 1. EXACTO POR NOMBRE
+  for (let k of keys) { if (normalizar(k) === nClave) return k; }
+  // 2. Si hay varios que contienen ese nombre, NO devolver el primero, avisar
+  let coinc = keys.filter(k => normalizar(k).includes(nClave));
+  if (coinc.length > 1) return 'MULTIPLE:' + coinc.join(' | ');
+  if (coinc.length === 1) return coinc[0];
+  return null;
 }
-});}
+
+function buscarEnCatalogo(clave) {
+  let nClave = normalizar(clave);
+  let exacto = CATALOGO.find(p => normalizar(p.nombre) === nClave);
+  if (exacto) return exacto;
+  let coinc = CATALOGO.filter(p => normalizar(p.nombre).includes(nClave));
+  if (coinc.length === 1) return coinc[0];
+  if (coinc.length > 1) return { multiple: coinc };
+  return null;
+}
+
+function formatearInfo(txt) {
+  // Respeta los saltos de línea que manda Yordan, no los borra
+  let lineas = txt.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  if (lineas.length <= 1) {
+    lineas = txt.split(/\. +/).map(l => l.trim()).filter(l => l.length > 0);
+  }
+  return lineas.map(l => {
+    l = l.replace(/^[✅✔️•\-\* ]+/, '').trim();
+    if (l.length < 2) return null;
+    if (!l.endsWith('.')) l += '.';
+    return '✅ ' + l;
+  }).filter(Boolean).join('\n');
+}
+
+// ===== BOT =====
+async function start() {
+  const { state, saveCreds } = await useMultiFileAuthState('auth_info');
+  const sock = makeWASocket({ auth: state, logger: pino({ level: 'silent' }), printQRInTerminal: true });
+  sock.ev.on('creds.update', saveCreds);
+
+  sock.ev.on('connection.update', (u) => {
+    if (u.connection === 'close') {
+      let reason = u.lastDisconnect?.error?.output?.statusCode;
+      if (reason !== DisconnectReason.loggedOut) start();
+    }
+    if (u.connection === 'open') console.log('KAIROS CONECTADO ✅');
+  });
+
+  sock.ev.on('messages.upsert', async ({ messages }) => {
+    for (let m of messages) {
+      try {
+        if (!m.message || m.key.fromMe) continue;
+        let from = m.key.remoteJid;
+        let rawText = m.message.conversation || m.message.extendedTextMessage?.text || '';
+        if (!rawText) continue;
+        let text = rawText.toLowerCase().trim();
+
+        const send = async (t) => { await sock.sendMessage(from, { text: t }); };
+
+        // ================= GRUPO DE DUDAS / INFO =================
+        if (from === GRUPO_INFO) {
+          // Ver lo que hay guardado
+          if (text === 'lista info') {
+            let lista = Object.keys(INFO_PRODUCTOS);
+            if (!lista.length) { await send('No hay ninguna info guardada todavía.'); continue; }
+            await send('INFO guardada:\n' + lista.map(k => '- ' + k).join('\n'));
+            continue;
+          }
+
+          // Guardar info - lo puede hacer Yordan o tú
+          if (text.startsWith('info ')) {
+            let parte = rawText.replace(/^info\s+/i, '').trim();
+            // Quita el "PRODUCTO:" que manda Yordan
+            parte = parte.replace(/^producto\s*:\s*/i, '').trim();
+
+            let prod = '';
+            let txtInfo = '';
+
+            if (parte.includes('//')) {
+              let p = parte.split('//');
+              prod = p[0].trim().toUpperCase();
+              txtInfo = p.slice(1).join('//').trim();
+            } else if (parte.toLowerCase().includes('caracteristicas:')) {
+              let idxCar = parte.toLowerCase().indexOf('caracteristicas:');
+              let antes = parte.substring(0, idxCar).trim();
+              txtInfo = parte.substring(idxCar + 'caracteristicas:'.length).trim();
+              if (antes.includes(' - ')) {
+                prod = antes.split(' - ')[0].trim().toUpperCase();
+                txtInfo = antes.split(' - ')[1].trim() + '\n' + txtInfo;
+              } else prod = antes.trim().toUpperCase();
+            } else if (parte.includes(':')) {
+              let idx = parte.indexOf(':');
+              prod = parte.substring(0, idx).trim().toUpperCase();
+              txtInfo = parte.substring(idx + 1).trim();
+            } else {
+              await send('Para guardar pon: info Nombre // caracteristica');
+              continue;
+            }
+
+            if (!prod || !txtInfo || prod === 'PRODUCTO') { await send('No entendí el nombre. Pon: info Arrocera Marwa // info'); continue; }
+
+            // Guarda POR NOMBRE EXACTO, no por lugar
+            INFO_PRODUCTOS[prod] = { texto: txtInfo, fuente: 'Admin en Dudas', fecha: new Date().toLocaleDateString('es-CU') };
+            guardarTodo();
+            await send('✅ Guardado INFO de ' + prod);
+
+            // Si había un gestor esperando ESE nombre, se la mandamos
+            if (PENDIENTES_INFO[prod]) {
+              let g = PENDIENTES_INFO[prod];
+              await sock.sendMessage(g, { text: `📦 *${prod} - KAIROS*\n\n${formatearInfo(txtInfo)}` });
+              delete PENDIENTES_INFO[prod];
+              guardarTodo();
+              await send('Ya se la mandé al gestor que la pidió.');
+            }
+            continue;
+          }
+
+          // Si en el grupo piden info, también responde por nombre
+          if (text.startsWith('info ')) continue;
+          continue;
+        }
+
+        // ================= PRIVADO GESTOR =================
+        // PEDIR INFO - POR NOMBRE, NO POR LUGAR
+        if (text.startsWith('info ')) {
+          let clave = rawText.replace(/^info\s+/i, '').trim();
+          if (!clave) { await send('Escribe: info + nombre. Ej: info arrocera marwa'); continue; }
+
+          let encontrado = buscarProducto(clave);
+
+          if (encontrado && encontrado.startsWith('MULTIPLE:')) {
+            await send('¿Cuál de estas quieres?\n' + encontrado.replace('MULTIPLE: ', '').split(' | ').map(s => '- ' + s).join('\n') + '\n\nEscribe: info + nombre completo. Ej: info arrocera marwa');
+            continue;
+          }
+
+          if (encontrado && INFO_PRODUCTOS[encontrado]) {
+            await send(`📦 *${encontrado} - KAIROS*\n\n${formatearInfo(INFO_PRODUCTOS[encontrado].texto)}`);
+            continue;
+          }
+
+          // No la tiene, la pide al grupo por nombre exacto
+          let claveUpper = clave.toUpperCase();
+          // Evita pedir 2 veces lo mismo
+          if (!PENDIENTES_INFO[claveUpper]) {
+            PENDIENTES_INFO[claveUpper] = from;
+            guardarTodo();
+            await sock.sendMessage(GRUPO_INFO, { text: `❓ INFO PEDIDA\nProducto: ${claveUpper}\nGestor esperando...` });
+          }
+          await send('No la tengo, ya la pedí al grupo. Cuando Yordan la ponga te la mando.');
+          continue;
+        }
+
+        // ===== CATALOGO =====
+        if (text === 'catalogo' || text === 'catálogo' || text === 'menu' || text === 'menú') {
+          let lista = CATALOGO.map((p, i) => `${i + 1}. ${p.nombre} - ${p.precioUSD} USD`).join('\n');
+          await send('📦 *CATÁLOGO KAIROS - ALMACÉN 1*\n\n' + lista + '\n\nEscribe el nombre del producto para pedirlo. Ej: Arrocera Marwa');
+          continue;
+        }
+
+        // ===== PEDIDO SIMPLE =====
+        if (text === 'hola' || text === 'inicio' || text === 'empezar') {
+          await send('Hola 👋 Soy KAIROS\n\nEscribe *catalogo* para ver productos\nEscribe *info + nombre* para ver detalles. Ej: info arrocera marwa');
+          continue;
+        }
+
+        // Buscar producto en catálogo para pedido
+        let prodCat = buscarEnCatalogo(rawText);
+        if (prodCat && !prodCat.multiple) {
+          let ped = { productos: [{ nombre: prodCat.nombre, precioUSD: prodCat.precioUSD, cant: 1, almacen: prodCat.almacen }], paso: 'datos' };
+          PEDIDOS[from] = ped;
+          let totalUSD = prodCat.precioUSD;
+          let totalMN = Math.round(totalUSD * TASA_USD);
+          await send(`RESUMEN\n\nProducto: ${prodCat.nombre} x1 = ${totalUSD} USD\nTotal: ${totalUSD} USD / ${totalMN} MN\n\n¿Recogida o Domicilio?\nEscribe: *LOCAL* o *DOMICILIO*`);
+          continue;
+        }
+        if (prodCat && prodCat.multiple) {
+          await send('¿Cuál quieres?\n' + prodCat.multiple.map(p => '- ' + p.nombre + ' - ' + p.precioUSD + ' USD').join('\n') + '\n\nEscribe el nombre completo.');
+          continue;
+        }
+
+        // ===== FLUJO PEDIDO =====
+        let ped = PEDIDOS[from];
+        if (ped) {
+          if (ped.paso === 'datos') {
+            if (text === 'local' || text === 'recogida' || text === 'tienda') {
+              ped.tipo = 'recogida';
+              ped.almacen = ped.productos[0].almacen;
+              ped.paso = 'pago';
+              let totalUSD = ped.productos.reduce((s, p) => s + p.precioUSD * p.cant, 0);
+              let totalMN = Math.round(totalUSD * TASA_USD);
+              await send(`LOCAL de recogida - Almacén ${ped.almacen}:\n${DIRECCIONES[ped.almacen]}\n\nTotal: ${totalUSD} USD / ${totalMN} MN\n\n¿Cómo paga?\n*1* = USD\n*2* = EUR\n*3* = MN`);
+              continue;
+            }
+            if (text === 'domicilio' || text === 'envio' || text === 'envío') {
+              ped.tipo = 'domicilio';
+              ped.paso = 'direccion';
+              await send('Pásame la dirección completa de entrega.');
+              continue;
+            }
+            await send('Escribe *LOCAL* o *DOMICILIO*');
+            continue;
+          }
+          if (ped.paso === 'direccion') {
+            ped.direccion = rawText;
+            ped.paso = 'pago';
+            let totalUSD = ped.productos.reduce((s, p) => s + p.precioUSD * p.cant, 0);
+            let totalMN = Math.round(totalUSD * TASA_USD);
+            await send(`Dirección: ${rawText}\nTotal: ${totalUSD} USD / ${totalMN} MN\n\n¿Cómo paga?\n*1* = USD\n*2* = EUR\n*3* = MN`);
+            continue;
+          }
+          if (ped.paso === 'pago') {
+            let metodo = text === '1' ? 'USD' : text === '2' ? 'EUR' : text === '3' ? 'MN' : '';
+            if (!metodo) { await send('Escribe *1* = USD, *2* = EUR, *3* = MN'); continue; }
+            ped.pago = metodo;
+            ped.paso = 'cliente';
+            await send('Ahora pásame: Nombre + Carnet + Teléfono. Ej: Juan Perez 12345678901 55555555');
+            continue;
+          }
+          if (ped.paso === 'cliente') {
+            ped.cliente = rawText;
+            delete PEDIDOS[from];
+            let totalUSD = ped.productos.reduce((s, p) => s + p.precioUSD * p.cant, 0);
+            let totalMN = Math.round(totalUSD * TASA_USD);
+            let totalEUR = Math.round(totalUSD * TASA_USD / TASA_EUR);
+            await send(`✅ PEDIDO REGISTRADO\n\nCliente: ${ped.cliente}\nProducto: ${ped.productos.map(p => p.nombre).join(', ')}\nTipo: ${ped.tipo}\n${ped.tipo === 'recogida' ? 'Recoger en: ' + DIRECCIONES[ped.almacen] : 'Entregar en: ' + ped.direccion}\nPago: ${ped.pago}\nTotal: ${totalUSD} USD / ${totalEUR} EUR / ${totalMN} MN`);
+            continue;
+          }
+        }
+
+        // Si no entendió
+        await send('No entendí. Escribe *catalogo* para ver productos o *info + nombre* para ver detalles.');
+
+      } catch (e) {
+        console.log('Error:', e);
+      }
+    }
+  });
+}
+
 start();
