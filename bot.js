@@ -81,7 +81,7 @@ delete PEDIDOS[from];ELIGIENDO_ALMACEN.delete(from);
 await send('Holaa Bienvenido a *KAIROS*\n\nSoy tu asistente, el que te ayuda a crear los vales para la tienda.\n\nYo me encargo de:\nCrear tus vales\nMandarlo a Louis\nCalcularte la mensajeria y el total\n\nPara empezar, escribe:\n*pedido* para hacer un pedido\n*mis vales* para ver tus vales\n*registrarme* si eres nuevo\n\nEmpezamos un pedido?');
 return;
 }
-}.\n\nEscribe: *catalogo*');return;}
+}
 if(text==='catálogo'||text==='catalogo'){ELIGIENDO_ALMACEN.add(from);delete PEDIDOS[from];await send('¿De qué almacén quieres?\n\n1. Almacén 1\n2. Almacén 2\n\nEscribe 1 o 2');return;}
 if(ELIGIENDO_ALMACEN.has(from)){
   if(text==='1'||text==='2'||text.includes('almacen 1')||text.includes('almacen 2')){
