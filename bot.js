@@ -55,7 +55,34 @@ function totalMNProductos(prods){return prods.reduce((s,p)=>s+p.precioUSD*p.cant
 function buscarProductoEnAlmacen(almacen,txt){let lista=listaPorAlmacen(almacen);txt=txt.trim();if(/^[0-9]+$/.test(txt)){let idx=parseInt(txt)-1;return lista[idx]||null;}let clave=txt.toUpperCase();if(CATALOGO[clave]&&String(CATALOGO[clave].almacen)===String(almacen))return CATALOGO[clave];for(const p of lista){if(p.nombre.toUpperCase().includes(clave)||clave.includes(p.nombre.toUpperCase().split(' ')[0]))return p;}return null;}
 
 async function start(){const{state,saveCreds}=await useMultiFileAuthState('sesion-kairos');const sock=makeWASocket({logger:pino({level:'silent'}),auth:state});sock.ev.on('creds.update',saveCreds);sock.ev.on('connection.update',(u)=>{if(u.qr){ULTIMO_QR=u.qr;console.log('QR NUEVO - VE A /qr');}if(u.connection==='close'){const rec=u.lastDisconnect?.error?.output?.statusCode!==DisconnectReason.loggedOut;if(rec)start();}else if(u.connection==='open'){console.log('KAIROS CONECTADO');ULTIMO_QR='';}});sock.ev.on('messages.upsert',async({messages})=>{const m=messages[0];if(!m.message||m.key.fromMe)return;const from=m.key.remoteJid;const rawText=(m.message.conversation||m.message.extendedTextMessage?.text||'').trim();const quienHabla=m.key.participant||m.participant||from;const nombreGestor=m.pushName||from;const text=rawText.toLowerCase().trim();const send=async(t)=>{await sock.sendMessage(from,{text:t});};const esLouis=from===LOUIS_JID||from===LOUIS_LID||quienHabla===LOUIS_JID||quienHabla===LOUIS_LID;const esAdmin=ADMIN_OK.has(from)||ADMIN_OK.has(quienHabla)||esLouis;
-
+// FUTURA COMPRA - TÚ LE ESCRIBES AL BOT
+if(esAdmin && text.startsWith('futura compra')){
+  let info = rawText.replace(/futura compra:/i,'').trim();
+  let numMatch = info.match(/5\d{7}|\d{8}/);
+  let numero = numMatch ? numMatch[0] : '';
+  if(!numero){ await send('❌ No encontré el número. Escríbelo así:\nFutura compra: Juan Perez 5351234567 quiere iPhone 13 250 USD'); return; }
+  let nombre = info.split(numero)[0].replace(/quiere/i,'').trim() || 'Cliente';
+  let producto = info.split(numero)[1].replace(/quiere/i,'').trim() || 'Producto';
+  FUTURAS_COMPRAS[numero] = { numero, nombre, producto, motivo: info, fecha: new Date().toISOString(), estado: 'futura', msg3: false };
+  guardarFuturas();
+  await send(`✅ Guardado como FUTURA COMPRA\n👤 ${nombre} - ${numero}\n📦 ${producto}\n\nYa le mandé el Mensaje 1 y quedó reservada. Al 3er día le vuelvo a escribir.`);
+  let msg1 = `Hola ${nombre}, mucho gusto. Le habla el equipo de KAIROS 🙏\n\nQueremos agradecerle por considerar-nos para su compra. Ya dejamos registrada y reservada su futura compra:\n📦 ${producto}\n\nQuedó apartada a su nombre, con toda tranquilidad y sin ningún compromiso. Cuando usted se sienta listo, nos avisa y con mucho gusto se la confirmamos.\n\nQuedamos atentos a usted.`;
+  await sock.sendMessage(numero + '@s.whatsapp.net', {text: msg1});
+  return;
+}
+if(text === '/futuras' && esAdmin){
+  let lista = Object.values(FUTURAS_COMPRAS).filter(p => p.estado === 'futura');
+  if(lista.length === 0){ await send('No hay futuras compras pendientes'); return; }
+  let t = '🔮 FUTURAS COMPRAS RESERVADAS:\n\n';
+  lista.forEach(p => { t += `👤 ${p.nombre} - ${p.numero}\n📦 ${p.producto}\n💬 ${p.motivo}\n---\n`; });
+  await send(t);
+  return;
+}
+if(text.startsWith('/vendida ') && esAdmin){
+  let num = rawText.replace('/vendida ','').trim();
+  if(FUTURAS_COMPRAS[num]){ FUTURAS_COMPRAS[num].estado = 'vendida'; guardarFuturas(); await send('✅ Marcada como vendida y sacada de futuras compras.'); }
+  return;
+}
 if(from.endsWith('@g.us')){
   const esLouisGrupo=quienHabla===LOUIS_JID||quienHabla===LOUIS_LID||quienHabla.includes('5356947882')||quienHabla.includes('132624865579031');
   const mcGrupo=rawText.match(/kairos[-\s]?(\d+)\s+confirmado/i);
