@@ -23,6 +23,9 @@ function guardarTodo(){try{fs.writeFileSync('catalogo.json',JSON.stringify(CATAL
 
 let PEDIDOS={};let VALES={};let CONTADOR=0;let ACTUALIZANDO={};let PIDIENDO_NOMBRE=new Set();let ELIGIENDO_ALMACEN=new Set();
 let PENDIENTES_INFO={};
+let FUTURAS_COMPRAS={};
+try{ if(fs.existsSync('futuras.json')) FUTURAS_COMPRAS = JSON.parse(fs.readFileSync('futuras.json')); }catch(e){}
+function guardarFuturas(){ try{ fs.writeFileSync('futuras.json', JSON.stringify(FUTURAS_COMPRAS)); }catch(e){} try{ backup_to_github(); }catch(e){} }
 let TASA_BASE=935;let TASA_A1=940;let TASA_A2=945;let TASA_USD=945;let TASA_EUR=945;
 async function actualizarTasa(){try{const r=await fetch('https://api.eltoque.com/v1/trmi');const j=await r.json();if(j?.tasa)TASA_BASE=Math.round(j.tasa);}catch(e){}TASA_A1=TASA_BASE+5;TASA_A2=TASA_BASE+10;TASA_USD=TASA_A2;TASA_EUR=TASA_A2;console.log('Tasa: Base '+TASA_BASE+' / A1 '+TASA_A1+' / A2 '+TASA_A2);}
 actualizarTasa();setInterval(actualizarTasa,15*60*1000);
