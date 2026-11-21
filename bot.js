@@ -29,7 +29,7 @@ actualizarTasa();setInterval(actualizarTasa,15*60*1000);
 
 function tasaPorAlmacen(a){return String(a)==='1'?TASA_A1:TASA_A2;}
 function listaPorAlmacen(a){return Object.values(CATALOGO).filter(p=>String(p.almacen)===String(a));}
-
+function textoCatalogoAlmacen(a){
   let lista=listaPorAlmacen(a);
   let t='--- ALMACEN '+a+' ---\n';
   if(lista.length===0) t+='(Vacio)\n';
