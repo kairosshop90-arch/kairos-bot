@@ -34,12 +34,55 @@ function guardarFuturas(){ try{ fs.writeFileSync('futuras.json', JSON.stringify(
 let TASA_BASE=0;let TASA_A1=0;let TASA_A2=0;let TASA_USD=0;let TASA_EUR=0;
 async function actualizarTasa(){
   try{
+    // 1. Intenta El Toque
     const r = await fetch('https://api.eltoque.com/v1/tasas', {
-  headers: {
-    'User-Agent': 'Mozilla/5.0',
-    'Accept': 'application/json'
-  }
-});
+      headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' }
+    });
+    const txt = await r.text();
+    console.log('Lo que me dio El Toque:', txt.slice(0, 500));
+
+    if(!txt.trim().startsWith('<')){
+      const j = JSON.parse(txt);
+      let usd = j?.tasas?.USD || j?.tasas?.usd || j?.USD || j?.usd;
+      let eur = j?.tasas?.EUR || j?.tasas?.eur || j?.EUR || j?.eur;
+      if(!usd && Array.isArray(j)){
+        let f = j.find(x => (x.moneda||x.currency||'') == 'USD');
+        if(f) usd = f.valor || f.tasa || f.precio;
+      }
+      if(usd){
+        TASA_USD = parseFloat(usd);
+        TASA_EUR = eur ? parseFloat(eur) : TASA_USD;
+        TASA_A1 = TASA_USD + 5;
+        TASA_A2 = TASA_USD + 10;
+        console.log('Tasa FINAL: USD', TASA_USD, '/ EUR', TASA_EUR, '/ A1', TASA_A1, '/ A2', TASA_A2);
+        return;
+      }
+    }
+    console.log('El Toque devolvio HTML, pruebo CubaDivisas...');
+  }catch(e){ console.log('Error El Toque:', e.message); }
+
+  try{
+    // 2. Si El Toque falla, prueba CubaDivisas (sin Cloudflare)
+    const r2 = await fetch('https://cubadivisas.com', {
+      headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'text/html' }
+    });
+    const html = await r2.text();
+    let m = html.match(/USD[^0-9]{0,80}([0-9]{3,4})[,.]([0-9]{2})/);
+    if(m){
+      TASA_USD = parseFloat(m[1] + '.' + m[2]);
+      TASA_EUR = TASA_USD;
+      TASA_A1 = TASA_USD + 5;
+      TASA_A2 = TASA_USD + 10;
+      console.log('Tasa FINAL desde CubaDivisas: USD', TASA_USD);
+      return;
+    }
+  }catch(e){ console.log('Error CubaDivisas:', e.message); }
+
+  // 3. Si todo falla, usa la de respaldo
+  console.log('Uso tasa de respaldo');
+  TASA_USD = 960; TASA_EUR = 960; TASA_A1 = 965; TASA_A2 = 970;
+  console.log('Tasa FINAL: USD', TASA_USD, '/ EUR', TASA_EUR, '/ A1', TASA_A1, '/ A2', TASA_A2);
+}
     const txt = await r.text();
     console.log('Lo que me dio El Toque:', txt.slice(0, 500));
     if(txt.trim().startsWith('<')){
