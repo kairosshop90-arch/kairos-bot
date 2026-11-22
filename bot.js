@@ -26,8 +26,36 @@ let PENDIENTES_INFO={};
 let FUTURAS_COMPRAS={};
 try{ if(fs.existsSync('futuras.json')) FUTURAS_COMPRAS = JSON.parse(fs.readFileSync('futuras.json')); }catch(e){}
 function guardarFuturas(){ try{ fs.writeFileSync('futuras.json', JSON.stringify(FUTURAS_COMPRAS)); }catch(e){} try{ backup_to_github(); }catch(e){} }
-let TASA_BASE=935;let TASA_A1=940;let TASA_A2=945;let TASA_USD=945;let TASA_EUR=945;
-async function actualizarTasa(){try{const r=await fetch('https://api.eltoque.com/v1/trmi');const j=await r.json();if(j?.tasa)TASA_BASE=Math.round(j.tasa);}catch(e){}TASA_A1=TASA_BASE+5;TASA_A2=TASA_BASE+10;TASA_USD=TASA_A2;TASA_EUR=TASA_A2;console.log('Tasa: Base '+TASA_BASE+' / A1 '+TASA_A1+' / A2 '+TASA_A2);}
+let TASA_BASE=0;let TASA_A1=0;let TASA_A2=0;let TASA_USD=0;let TASA_EUR=0;
+async function actualizarTasa(){
+  try{
+    const r = await fetch('https://api.eltoque.com/v1/tasas');
+    const j = await r.json();
+    console.log('Lo que me dio El Toque:', JSON.stringify(j).slice(0, 500));
+    let usd = j?.tasas?.USD || j?.tasas?.usd || j?.USD || j?.usd || j?.tasa || j?.trmi;
+    if(!usd && Array.isArray(j)){
+      let f = j.find(x => (x.moneda||x.currency||'') == 'USD');
+      if(f) usd = f.valor || f.tasa || f.precio;
+    }
+    if(!usd && Array.isArray(j?.tasas)){
+      let f = j.tasas.find(x => (x.moneda||x.currency||x.code||'') == 'USD');
+      if(f) usd = f.valor || f.tasa || f.precio || f.rate;
+    }
+    if(usd){
+      TASA_USD = Math.round(Number(usd));
+      TASA_BASE = TASA_USD;
+      console.log('✅ Tasa REAL cogida: ' + TASA_USD);
+    } else {
+      console.log('❌ No encontré USD, me quedo con: ' + TASA_USD);
+    }
+  }catch(e){ console.log('Error tasa:', e.message); }
+  if(!TASA_USD) TASA_USD = 960;
+  TASA_EUR = TASA_USD;
+  TASA_BASE = TASA_USD;
+  TASA_A1 = TASA_BASE + 5;
+  TASA_A2 = TASA_BASE + 10;
+  console.log('Tasa FINAL: USD '+TASA_USD+' / EUR '+TASA_EUR+' / A1 '+TASA_A1+' / A2 '+TASA_A2);
+}
 actualizarTasa();setInterval(actualizarTasa,15*60*1000);
 
 function tasaPorAlmacen(a){return String(a)==='1'?TASA_A1:TASA_A2;}
