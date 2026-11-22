@@ -10,7 +10,11 @@ const LOUIS_LID='132624865579031@lid';
 const GRUPO_LOCAL='120363417801594416@g.us';
 const GRUPO_MENSAJERIA='120363419483851412@g.us';
 const DIRECCIONES={1:'Calle 1ra / 2da y 4ta No.23308. Altura del Mirador',2:'Calle 2da #18532 / E y D. Luyano Moderno, San Miguel del Padron',3:'En espera de direccion'};
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadContentFromMessage } = require('@whiskeysockets/baileys');
 
+
+let NUEVO_PRODUCTO = {};
+let CANAL_LINK = "https://whatsapp.com/channel/0029Vb6XwiiLo4hiv8RTIi0w";
 let CATALOGO={};let AGOTADOS=new Set();let ADMIN_OK=new Set();let GESTORES={};let COMISIONES={};let INFO_PRODUCTOS={};
 try{if(fs.existsSync('catalogo.json'))CATALOGO=JSON.parse(fs.readFileSync('catalogo.json'));}catch(e){}
 try{if(fs.existsSync('admins.json'))JSON.parse(fs.readFileSync('admins.json')).forEach(id=>ADMIN_OK.add(id));}catch(e){}
@@ -167,7 +171,64 @@ if(text==='comisiones'||text==='comision'){await send('COMISIONES KAIROS\n\nProd
 if(text==='ver mis comisiones'||text==='ver mis comsiones'||text==='mis comisiones'||text==='ver mis camiones'){const mis=COMISIONES[from];if(!mis||!mis.ventas||mis.ventas.length===0){await send('Todavía no tienes comisiones.\nCuando Louis marque tu vale como entregado, aquí te aparece.');return;}let t='MIS COMISIONES - '+(mis.nombre||GESTORES[from]||nombreGestor)+'\n\n';mis.ventas.forEach(v=>{t+=v.fecha+' | KAIROS-'+String(v.numero).padStart(3,'0')+' | '+v.productos+' | +'+v.comision.toLocaleString()+' MN\n';});t+='\nTOTAL ACUMULADO: '+mis.total.toLocaleString()+' MN\nVales: '+mis.ventas.length;await send(t);return;}
 if(esLouis&&(text==='ver comisiones'||text==='ver todas las comisiones')){let t='COMISIONES TODOS LOS GESTORES\n\n';let tot=0;for(const k in COMISIONES){t+=COMISIONES[k].nombre+' ('+k+'): '+COMISIONES[k].total.toLocaleString()+' MN - '+COMISIONES[k].ventas.length+' vales\n';tot+=COMISIONES[k].total;}t+='\nTOTAL A PAGAR: '+tot.toLocaleString()+' MN';await send(t);return;}
 if(esLouis&&text.startsWith('pagar comision ')){const resto=rawText.substring(15).trim();let target=null;for(const k in COMISIONES){if(k.includes(resto)||COMISIONES[k].nombre.toLowerCase().includes(resto.toLowerCase()))target=k;}if(!target){await send('No encontré ese gestor. Usa su número o nombre.');return;}let pagado=COMISIONES[target].total;COMISIONES[target].total=0;COMISIONES[target].ventas=[];guardarTodo();await send('Pagado '+pagado.toLocaleString()+' MN a '+COMISIONES[target].nombre+'. Puesto en 0.');return;}
-if(!esAdmin&&!GESTORES[from]&&!PIDIENDO_NOMBRE.has(from)){PIDIENDO_NOMBRE.add(from);await send('Hola, bienvenido a KAIROS.\nEres nuevo, dime tu nombre completo para guardarte.\nEj: Maria Lopez');return;}
+        // ===== /NUEVO - ADAPTADO A TU BOT =====
+if (text === '/nuevo' && esAdmin) {
+  NUEVO_PRODUCTO[from] = { paso: 1 };
+  await send('📦 *NUEVO PRODUCTO - KAIROS* 👑\n\n1️⃣ Manda la *FOTO* del producto\n\nEscribe /cancelar para salir');
+  return;
+}
+if (text === '/cancelar' && NUEVO_PRODUCTO[from]) {
+  delete NUEVO_PRODUCTO[from];
+  await send('❌ Cancelado 👑');
+  return;
+}
+if (NUEVO_PRODUCTO[from] && NUEVO_PRODUCTO[from].paso === 1) {
+  let fotoMsg = msg.message?.imageMessage;
+  if (!fotoMsg) { await send('Manda primero la FOTO 👑'); return; }
+  let stream = await downloadContentFromMessage(fotoMsg, 'image');
+  let chunks = [];
+  for await (let chunk of stream) chunks.push(chunk);
+  NUEVO_PRODUCTO[from].fotoBuffer = Buffer.concat(chunks);
+  NUEVO_PRODUCTO[from].paso = 2;
+  await send('✅ *Foto guardada* 👑\n\n2️⃣ Ahora manda las *CARACTERÍSTICAS*\nEjemplo: Abanico recargable, 3 velocidades, batería 8 horas');
+  return;
+}
+if (NUEVO_PRODUCTO[from] && NUEVO_PRODUCTO[from].paso === 2) {
+  NUEVO_PRODUCTO[from].caracteristicas = rawText;
+  let palabras = rawText.split(' ');
+  NUEVO_PRODUCTO[from].nombre = palabras.slice(0, 3).join(' ');
+  NUEVO_PRODUCTO[from].paso = 3;
+  await send('✅ *Características guardadas* 👑\n\n3️⃣ Ahora manda el *PRECIO EN USD*\nEjemplo: 25');
+  return;
+}
+if (NUEVO_PRODUCTO[from] && NUEVO_PRODUCTO[from].paso === 3) {
+  NUEVO_PRODUCTO[from].precio = rawText.trim();
+  NUEVO_PRODUCTO[from].paso = 4;
+  await send('✅ *Precio guardado:* '+rawText+' 👑\n\n4️⃣ ¿En qué *ALMACÉN* lo pongo?\n\nEscribe:\n*1* - Almacén 1\n*2* - Almacén 2\n*3* - Almacén 3');
+  return;
+}
+if (NUEVO_PRODUCTO[from] && NUEVO_PRODUCTO[from].paso === 4) {
+  if (text !== '1' && text !== '2' && text !== '3') { await send('Escribe solo *1*, *2* o *3* 👑'); return; }
+  let p = NUEVO_PRODUCTO[from];
+  let clave = p.nombre.toUpperCase();
+  let precioNum = parseFloat(p.precio);
+
+  // 1. GUARDA EN TU CATALOGO REAL
+  CATALOGO[clave] = { nombre: p.nombre, precioUSD: precioNum, almacen: text };
+  // 2. GUARDA INFO PARA QUE SALGA EN LOS PEDIDOS
+  if (typeof INFO_PRODUCTOS !== 'undefined') INFO_PRODUCTOS[clave] = { texto: p.caracteristicas };
+  if (typeof AGOTADOS !== 'undefined') AGOTADOS.delete(clave);
+  guardarTodo();
+
+  let textoCanal = '📦 *NUEVO EN KAIROS* 👑\n\n*'+p.nombre+'*\n\n✨ *CARACTERÍSTICAS:*\n'+p.caracteristicas+'\n\n💰 *Precio:* '+p.precio+' USD\n🏬 Disponible en Almacén '+text+'\n\n📣 Síguenos aquí:\n'+CANAL_LINK+'\n\nEscribe: *info '+p.nombre+'*';
+  let textoDudas = '❓ *DUDAS - NUEVO PRODUCTO* 👑\n\n📦 *Producto:* '+p.nombre+'\n\n✨ *Características:*\n'+p.caracteristicas+'\n\n💰 *Precio:* '+p.precio+' USD\n🏬 *Almacén:* '+text+'\n📦 *Disponibilidad:* Disponible\n\n¿Tienes alguna duda? Pregunta aquí 👇';
+
+  delete NUEVO_PRODUCTO[from];
+  await send('✅ *LISTO - GUARDADO EN ALMACÉN '+text+'* 👑\n'+p.nombre+' - '+p.precio+' USD\n\nAhora te mando la foto lista para el canal 👇');
+  await sock.sendMessage(from, { image: p.fotoBuffer, caption: textoCanal });
+  await send('━━━━━━━━━━━━━━\n\n❓ *2. PARA EL GRUPO DE DUDAS - COPIA ESTO:*\n\n'+textoDudas+'\n\n━━━━━━━━━━━━━━\n\n👉 *La foto de arriba la reenvías a tu canal KAIROS*');
+  return;
+}                        if(!esAdmin&&!GESTORES[from]&&!PIDIENDO_NOMBRE.has(from)){PIDIENDO_NOMBRE.add(from);await send('Hola, bienvenido a KAIROS.\nEres nuevo, dime tu nombre completo para guardarte.\nEj: Maria Lopez');return;}
 if(!esAdmin&&PIDIENDO_NOMBRE.has(from)){const nombre=rawText.trim();if(nombre.length<3||nombre.toLowerCase()==='hola'||nombre.toLowerCase()==='catalogo'){await send('Dime tu nombre completo, ej: Maria Lopez');return;}GESTORES[from]=nombre;PIDIENDO_NOMBRE.delete(from);guardarTodo();await send('Perfecto '+nombre+', ya quedaste guardado.\nCada vale que mandes saldra con tu nombre.\n\nEscribe: *catalogo*');return;}
 if(esAdmin&&text.includes('actualizar')){let num='1';if(text.includes('2'))num='2';if(text.includes('3'))num='3';ACTUALIZANDO[from]=num;delete PEDIDOS[from];await send('Vas a actualizar ALMACEN '+num+'\nManda la lista ahora, un producto por linea.\nEj: Arrocera Estelectric -- 27');return;}
 if(esAdmin&&ACTUALIZANDO[from]){const miAlmacen=ACTUALIZANDO[from];for(const k in CATALOGO){if(CATALOGO[k].almacen===miAlmacen)delete CATALOGO[k];}const ag=[];for(const l of rawText.split('\n')){let linea=l.trim();if(!linea)continue;linea=linea.replace(/^[☑️✅✔️•\-\* ]+/u,'').trim();if(!linea)continue;linea=linea.replace(/\(.*?USD.*?\)/gi,'').trim();const mPrecio=linea.match(/(.+?)[\s\-–—]*(\d+(\.\d+)?)\s*(USD|usd)?\s*$/);if(!mPrecio)continue;let nom=mPrecio[1].trim().replace(/[-–—\s]+$/,'').trim();let pre=parseFloat(mPrecio[2]);if(!nom||!pre)continue;const cl=nom.toUpperCase();CATALOGO[cl]={nombre:nom,precioUSD:pre,almacen:miAlmacen};AGOTADOS.delete(cl);ag.push(nom+' - '+pre+' USD');}guardarTodo();await send('Listo. Almacen '+miAlmacen+' actualizado.\n\n'+ag.join('\n'));delete ACTUALIZANDO[from];return;}
