@@ -10,7 +10,6 @@ const LOUIS_LID='132624865579031@lid';
 const GRUPO_LOCAL='120363417801594416@g.us';
 const GRUPO_MENSAJERIA='120363419483851412@g.us';
 const DIRECCIONES={1:'Calle 1ra / 2da y 4ta No.23308. Altura del Mirador',2:'Calle 2da #18532 / E y D. Luyano Moderno, San Miguel del Padron',3:'En espera de direccion'};
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadContentFromMessage } = require('@whiskeysockets/baileys');
 
 
 let NUEVO_PRODUCTO = {};
