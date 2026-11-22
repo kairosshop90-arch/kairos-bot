@@ -228,7 +228,7 @@ if (NUEVO_PRODUCTO[from] && NUEVO_PRODUCTO[from].paso === 4) {
   await send('✅ *LISTO - GUARDADO EN ALMACÉN '+text+'* 👑\n'+p.nombre+' - '+p.precio+' USD\n\nAhora te mando la foto lista para el canal 👇');
   await sock.sendMessage(from, { image: p.fotoBuffer, caption: textoCanal });
   await send('━━━━━━━━━━━━━━\n\n❓ *2. PARA EL GRUPO DE DUDAS - COPIA ESTO:*\n\n'+textoDudas+'\n\n━━━━━━━━━━━━━━\n\n👉 *La foto de arriba la reenvías a tu canal KAIROS*');
-  return;
+  return;}
   if(!esAdmin&&!GESTORES[from]&&!PIDIENDO_NOMBRE.has(from)){PIDIENDO_NOMBRE.add(from);await send('Hola, bienvenido a *KAIROS* 👑\n\nEres nuevo, dime tu nombre completo para guardarte.\nEj: Maria Lopez');return;}
 if(!esAdmin&&PIDIENDO_NOMBRE.has(from)){const nombre=rawText.trim();if(nombre.length<3||nombre.toLowerCase()==='hola'||nombre.toLowerCase()==='catalogo'){await send('Dime tu nombre completo, ej: Maria Lopez');return;}GESTORES[from]=nombre;PIDIENDO_NOMBRE.delete(from);guardarTodo();await send('Perfecto '+nombre+', ya quedaste guardado 👑\n\nCada vale que mandes saldra con tu nombre.\n\n👇 *ESTO ES TODO LO QUE PUEDES HACER AQUÍ:* 👇\n\n📦 *1. catalogo* - Ver productos de Almacén 1, 2 o 3\n\n🚚 *2. mensajeria 1* - Ver listado de mensajería Almacén 1\n\n🚚 *3. mensajeria 2* - Ver listado de mensajería Almacén 2\n\n💰 *4. comisiones* - Ver cuánto tienes acumulado\n\n📦 *5. pedido* - Hacer un pedido nuevo\n\n✍️ Escribe una de esas palabras para empezar.\nEj: *catalogo*');return;}
   if(esAdmin&&text.includes('actualizar')){let num='1';if(text.includes('2'))num='2';if(text.includes('3'))num='3';ACTUALIZANDO[from]=num;delete PEDIDOS[from];await send('Vas a actualizar ALMACEN '+num+'\nManda la lista ahora, un producto por linea.\nEj: Arrocera Estelectric -- 27');return;}
