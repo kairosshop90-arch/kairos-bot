@@ -51,12 +51,15 @@ async function actualizarTasa(){
     }
   }catch(e){ console.log('Error El Toque:', e.message); }
 
-  try{
+    try{
     const r2 = await fetch('https://cubadivisas.com', { headers: { 'User-Agent': 'Mozilla/5.0' } });
     const html = await r2.text();
-    let m = html.match(/USD[^0-9]{0,80}([0-9]{3,4})[,.]([0-9]{2})/);
+    // 1. Busca el principal: "1 USD = 960,00 CUP" o "CUP / USD 960,00"
+    let m = html.match(/1 USD\s*=\s*\**\s*([0-9]{3,4})[,.]([0-9]{2})/)
+         || html.match(/CUP\s*\/\s*USD\s*([0-9]{3,4})[,.]([0-9]{2})/)
+         || html.match(/\|\s*USD\s*\|\s*([0-9]{3,4})/);
     if(m){
-      TASA_USD = parseFloat(m[1] + '.' + m[2]);
+      TASA_USD = parseFloat(m[1] + '.' + (m[2] || '00'));
       TASA_EUR = TASA_USD;
       TASA_A1 = TASA_USD + 5;
       TASA_A2 = TASA_USD + 10;
