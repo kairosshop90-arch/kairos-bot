@@ -34,8 +34,19 @@ function guardarFuturas(){ try{ fs.writeFileSync('futuras.json', JSON.stringify(
 let TASA_BASE=0;let TASA_A1=0;let TASA_A2=0;let TASA_USD=0;let TASA_EUR=0;
 async function actualizarTasa(){
   try{
-    const r = await fetch('https://api.eltoque.com/v1/tasas');
-    const j = await r.json();
+    const r = await fetch('https://api.eltoque.com/v1/tasas', {
+  headers: {
+    'User-Agent': 'Mozilla/5.0',
+    'Accept': 'application/json'
+  }
+});
+    const txt = await r.text();
+    console.log('Lo que me dio El Toque:', txt.slice(0, 500));
+    if(txt.trim().startsWith('<')){
+      console.log('El Toque devolvio HTML, uso tasa de respaldo');
+      throw new Error('HTML');
+    }
+    const j = JSON.parse(txt);
     console.log('Lo que me dio El Toque:', JSON.stringify(j).slice(0, 500));
     let usd = j?.tasas?.USD || j?.tasas?.usd || j?.USD || j?.usd || j?.tasa || j?.trmi;
     if(!usd && Array.isArray(j)){
