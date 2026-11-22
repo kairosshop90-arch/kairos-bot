@@ -15,6 +15,7 @@ const DIRECCIONES={1:'Calle 1ra / 2da y 4ta No.23308. Altura del Mirador',2:'Cal
 let NUEVO_PRODUCTO = {};
 let CANAL_LINK = "https://whatsapp.com/channel/0029Vb6XwiiLo4hiv8RTIi0w";
 let CATALOGO={};let AGOTADOS=new Set();let ADMIN_OK=new Set();let GESTORES={};let COMISIONES={};let INFO_PRODUCTOS={};
+
 try{if(fs.existsSync('catalogo.json'))CATALOGO=JSON.parse(fs.readFileSync('catalogo.json'));}catch(e){}
 try{if(fs.existsSync('admins.json'))JSON.parse(fs.readFileSync('admins.json')).forEach(id=>ADMIN_OK.add(id));}catch(e){}
 ADMIN_OK.add(LOUIS_JID);ADMIN_OK.add(LOUIS_LID);
@@ -27,6 +28,7 @@ function guardarTodo(){try{fs.writeFileSync('catalogo.json',JSON.stringify(CATAL
 let PEDIDOS={};let VALES={};let CONTADOR=0;let ACTUALIZANDO={};let PIDIENDO_NOMBRE=new Set();let ELIGIENDO_ALMACEN=new Set();
 let PENDIENTES_INFO={};
 let FUTURAS_COMPRAS={};
+
 try{ if(fs.existsSync('futuras.json')) FUTURAS_COMPRAS = JSON.parse(fs.readFileSync('futuras.json')); }catch(e){}
 function guardarFuturas(){ try{ fs.writeFileSync('futuras.json', JSON.stringify(FUTURAS_COMPRAS)); }catch(e){} try{ backup_to_github(); }catch(e){} }
 let TASA_BASE=0;let TASA_A1=0;let TASA_A2=0;let TASA_USD=0;let TASA_EUR=0;
