@@ -33,45 +33,56 @@ try{ if(fs.existsSync('futuras.json')) FUTURAS_COMPRAS = JSON.parse(fs.readFileS
 function guardarFuturas(){ try{ fs.writeFileSync('futuras.json', JSON.stringify(FUTURAS_COMPRAS)); }catch(e){} try{ backup_to_github(); }catch(e){} }
 let TASA_BASE=0;let TASA_A1=0;let TASA_A2=0;let TASA_USD=0;let TASA_EUR=0;
 //para actualizar el toque
-async function actualizarTasa(){
-  try{
-    const r = await fetch('https://api.eltoque.com/v1/tasas', { headers: { 'User-Agent': 'Mozilla/5.0' } });
-    const txt = await r.text();
-    if(!txt.trim().startsWith('<')){
-      const j = JSON.parse(txt);
-      let usd = j?.tasas?.USD || j?.USD || j?.usd;
-      if(usd){
-        TASA_USD = parseFloat(usd);
-        TASA_EUR = TASA_USD;
-        TASA_A1 = TASA_USD + 5;
-        TASA_A2 = TASA_USD + 10;
-        console.log('Tasa FINAL: USD', TASA_USD);
-        return;
-      }
-    }
-  }catch(e){ console.log('Error El Toque:', e.message); }
+let TASA_USD = 960, TASA_EUR = 960, TASA_A1 = 965, TASA_A2 = 970;
 
-    try{
-    const r2 = await fetch('https://cubadivisas.com', { headers: { 'User-Agent': 'Mozilla/5.0' } });
+async function actualizarTasa() {
+  // 1. EL TOQUE - Endpoint correcto
+  try {
+    const r = await fetch('https://api.eltoque.com/v1/trading_rates/current');
+    const j = await r.json();
+    
+    // El Toque devuelve: { trading_rates: [{code:'USD', rate:965}, ...] }
+    let usdObj = j?.trading_rates?.find(m => m.code === 'USD');
+    let eurObj = j?.trading_rates?.find(m => m.code === 'EUR');
+    let usd = usdObj?.rate;
+
+    if (usd) {
+      TASA_USD = parseFloat(usd);
+      TASA_EUR = eurObj ? parseFloat(eurObj.rate) : TASA_USD;
+      TASA_A1 = TASA_USD + 5;
+      TASA_A2 = TASA_USD + 10;
+      console.log('Tasa FINAL El Toque:', TASA_USD);
+      // Si tienes una función que pinta precios, llámala aquí
+      // pintarPrecios();
+      return;
+    }
+  } catch(e) { console.log('Error El Toque:', e.message); }
+
+  // 2. CUBA DIVISAS - Con proxy para que no te bloquee CORS
+  try {
+    const r2 = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent('https://cubadivisas.com'));
     const html = await r2.text();
     // 1. Busca el principal: "1 USD = 960,00 CUP" o "CUP / USD 960,00"
     let m = html.match(/1 USD\s*=\s*\**\s*([0-9]{3,4})[,.]([0-9]{2})/)
          || html.match(/CUP\s*\/\s*USD\s*([0-9]{3,4})[,.]([0-9]{2})/)
          || html.match(/\|\s*USD\s*\|\s*([0-9]{3,4})/);
-    if(m){
+    if (m) {
       TASA_USD = parseFloat(m[1] + '.' + (m[2] || '00'));
       TASA_EUR = TASA_USD;
       TASA_A1 = TASA_USD + 5;
       TASA_A2 = TASA_USD + 10;
       console.log('Tasa FINAL CubaDivisas:', TASA_USD);
+      // pintarPrecios();
       return;
     }
-  }catch(e){ console.log('Error CubaDivisas:', e.message); }
+  } catch(e) { console.log('Error CubaDivisas:', e.message); }
 
   TASA_USD = 960; TASA_EUR = 960; TASA_A1 = 965; TASA_A2 = 970;
   console.log('Tasa respaldo:', TASA_USD);
 }
-actualizarTasa();setInterval(actualizarTasa,15*60*1000);
+
+actualizarTasa();
+setInterval(actualizarTasa, 10 * 60 * 1000); // 10 minutos exactos
 
 
 function tasaPorAlmacen(a){return String(a)==='1'?TASA_A1:TASA_A2;}
