@@ -239,7 +239,20 @@ if(!from.endsWith('@g.us')&&(text.startsWith('info ')||text.startsWith('buscar '
 if(text==='ver info'){let keys=Object.keys(INFO_PRODUCTOS);if(keys.length===0){await send('Todavia no hay info guardada. Escribe: info + producto');return;}await send('INFO GUARDADA ('+keys.length+'):\n\n'+keys.map(k=>'• '+k).join('\n'));return;}
 if(text.startsWith('borrar info ')){let k=rawText.substring(12).trim().toUpperCase();if(INFO_PRODUCTOS[k]){delete INFO_PRODUCTOS[k];guardarTodo();await send('Borrada info de '+k);}else await send('No tenia info guardada de '+k);return;}
 if(text==='soy admin kairos123'){ADMIN_OK.add(from);guardarTodo();await send('Bienvenido Admin KAIROS.\nComandos: actualizar almacen 1, quitar producto X, agotado X, ver catalogo');return;}
-if(text==='tasa'||text==='toque'){await send('El Toque base: '+TASA_BASE+'\nAlmacén 1 (Toque +5): '+TASA_A1+' MN\nAlmacén 2 (Toque +10): '+TASA_A2+' MN\nEUR = USD mismo número');return;}
+// 👇 COMANDO MANUAL - Solo tú Louis puedes usarlo
+if(esLouis && text.startsWith('!tasa')){
+  let mm = rawText.trim().match(/^!tasa\s+([0-9.,]+)(?:\s+([0-9.,]+))?(?:\s+([0-9.,]+))?/i);
+  if(mm){
+    TASA_USD = Math.round(Number(mm[1].replace(',','.')));
+    if(mm[2]) TASA_EUR = Math.round(Number(mm[2].replace(',','.')));
+    if(mm[3]) TASA_MLC = Number(mm[3].replace(',','.'));
+    TASA_BASE = TASA_USD; TASA_A1 = TASA_BASE + 5; TASA_A2 = TASA_BASE + 10;
+    MODO_MANUAL = false; FALLAS_SEGUIDAS = 0;
+    await send(`✅ Listo Louis, ya puse la tasa manual:\nUSD: ${TASA_USD} CUP\nEUR: ${TASA_EUR} CUP\nMLC: ${TASA_MLC} CUP\n\nYa volví a modo automático.`);
+    return;
+  }
+}
+if(text==='tasa'||text==='toque'){await send('El Toque base: '+TASA_BASE+'\nAlmacén 1...                                                                                                                                                                                                                                                                                                                                                                                                                            if(text==='tasa'||text==='toque'){await send('El Toque base: '+TASA_BASE+'\nAlmacén 1 (Toque +5): '+TASA_A1+' MN\nAlmacén 2 (Toque +10): '+TASA_A2+' MN\nEUR = USD mismo número');return;}
 if(text==='mensajeria 1'||text==='mensajeria a1'){let t='MENSAJERÍA ALMACÉN 1\n\n';for(const z in MENSAJERIA_A1)t+=z+': $'+MENSAJERIA_A1[z].toLocaleString()+'\n';t+='\nExtras A1:\n4-6 art: +$1,000\n+6 art: x2\nGrande: +$1,000\nTV/Bici: +$500';await send(t.slice(0,4000));if(t.length>4000)await send(t.slice(4000));return;}
 if(text==='mensajeria 2'||text==='mensajeria a2'){let t='MENSAJERÍA ALMACÉN 2\n\n';for(const z in MENSAJERIA_A2)t+=z+': $'+MENSAJERIA_A2[z].toLocaleString()+'\n';t+='\nExtras A2:\nGrande / 3+ eq: x2\nNevera 11/16: x2 +$500\nExhibidora: x2 +$1,000\nFrío 15+ solo: +$800';await send(t.slice(0,4000));if(t.length>4000)await send(t.slice(4000));return;}
 if(text==='mensajeria'){await send('¿Qué listado quieres?\nEscribe:\n*mensajeria 1* - Almacén 1\n*mensajeria 2* - Almacén 2');return;}
