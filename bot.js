@@ -33,56 +33,60 @@ try{ if(fs.existsSync('futuras.json')) FUTURAS_COMPRAS = JSON.parse(fs.readFileS
 function guardarFuturas(){ try{ fs.writeFileSync('futuras.json', JSON.stringify(FUTURAS_COMPRAS)); }catch(e){} try{ backup_to_github(); }catch(e){} }
 let TASA_BASE=0;let TASA_A1=0;let TASA_A2=0;let TASA_USD=0;let TASA_EUR=0;
 //para actualizar el toque
-let TASA_USD = 960, TASA_EUR = 960, TASA_A1 = 965, TASA_A2 = 970;
+let TASA_USD = 0;      // Tasa base que lee de El Toque / CubaDivisa
+let TASA_ALMACEN_1 = 0; // Almacén 1 = +5
+let TASA_ALMACEN_2 = 0; // Almacén 2 = +10
+let TASA_EUR = 0;
 
 async function actualizarTasa() {
-  // 1. EL TOQUE - Endpoint correcto
+  console.log('🔄 Buscando tasa ACTUAL...');
+
+  let nuevaTasa = null;
+  let fuente = '';
+
+  // 1. EL TOQUE
   try {
-    const r = await fetch('https://api.eltoque.com/v1/trading_rates/current');
+    const r = await fetch('https://api.eltoque.com/v1/trading_rates/current', { headers: { 'Accept': 'application/json' } });
     const j = await r.json();
-    
-    // El Toque devuelve: { trading_rates: [{code:'USD', rate:965}, ...] }
-    let usdObj = j?.trading_rates?.find(m => m.code === 'USD');
-    let eurObj = j?.trading_rates?.find(m => m.code === 'EUR');
-    let usd = usdObj?.rate;
+    const usd = j?.trading_rates?.find(x => x.code === 'USD')?.rate;
+    const eur = j?.trading_rates?.find(x => x.code === 'EUR')?.rate;
+    if (usd) { nuevaTasa = parseFloat(usd); TASA_EUR = eur ? parseFloat(eur) : nuevaTasa; fuente = 'El Toque'; }
+  } catch(e) { console.log('El Toque falló:', e.message); }
 
-    if (usd) {
-      TASA_USD = parseFloat(usd);
-      TASA_EUR = eurObj ? parseFloat(eurObj.rate) : TASA_USD;
-      TASA_A1 = TASA_USD + 5;
-      TASA_A2 = TASA_USD + 10;
-      console.log('Tasa FINAL El Toque:', TASA_USD);
-      // Si tienes una función que pinta precios, llámala aquí
-      // pintarPrecios();
-      return;
-    }
-  } catch(e) { console.log('Error El Toque:', e.message); }
+  // 2. CUBA DIVISA - respaldo
+  if (!nuevaTasa) {
+    try {
+      const r = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent('https://cubadivisas.com'));
+      const html = await r.text();
+      let limpio = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+      let m = limpio.match(/CUP\s*\/\s*USD\s*([0-9]{3,4})[,.]([0-9]{2})/)
+           || limpio.match(/USD\s*=\s*([0-9]{3,4})[,.]([0-9]{2})/);
+      if (m) { nuevaTasa = parseFloat(m[1] + '.' + (m[2] || '00')); fuente = 'CubaDivisa'; }
+    } catch(e) { console.log('CubaDivisa falló:', e.message); }
+  }
 
-  // 2. CUBA DIVISAS - Con proxy para que no te bloquee CORS
-  try {
-    const r2 = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent('https://cubadivisas.com'));
-    const html = await r2.text();
-    // 1. Busca el principal: "1 USD = 960,00 CUP" o "CUP / USD 960,00"
-    let m = html.match(/1 USD\s*=\s*\**\s*([0-9]{3,4})[,.]([0-9]{2})/)
-         || html.match(/CUP\s*\/\s*USD\s*([0-9]{3,4})[,.]([0-9]{2})/)
-         || html.match(/\|\s*USD\s*\|\s*([0-9]{3,4})/);
-    if (m) {
-      TASA_USD = parseFloat(m[1] + '.' + (m[2] || '00'));
-      TASA_EUR = TASA_USD;
-      TASA_A1 = TASA_USD + 5;
-      TASA_A2 = TASA_USD + 10;
-      console.log('Tasa FINAL CubaDivisas:', TASA_USD);
-      // pintarPrecios();
-      return;
-    }
-  } catch(e) { console.log('Error CubaDivisas:', e.message); }
+  // Si logró leer el ACTUAL, calcula los almacenes
+  if (nuevaTasa) {
+    TASA_USD = nuevaTasa;
+    TASA_ALMACEN_1 = TASA_USD + 5;  // <-- Almacén 1
+    TASA_ALMACEN_2 = TASA_USD + 10; // <-- Almacén 2
+    console.log(`✅ ACTUAL: USD=${TASA_USD} | Almacén 1=${TASA_ALMACEN_1} | Almacén 2=${TASA_ALMACEN_2} | Fuente: ${fuente}`);
+    return;
+  }
 
-  TASA_USD = 960; TASA_EUR = 960; TASA_A1 = 965; TASA_A2 = 970;
-  console.log('Tasa respaldo:', TASA_USD);
+  console.log('⚠️ No se pudo leer, mantengo la anterior y reintento en 1 min:', TASA_USD);
+  setTimeout(actualizarTasa, 1 * 60 * 1000);
+}
+
+// Ejemplo de cómo usarlo en tus precios:
+function calcularPrecio(precioUSD, almacen) {
+  if (almacen === 1) return precioUSD * TASA_ALMACEN_1;
+  if (almacen === 2) return precioUSD * TASA_ALMACEN_2;
+  return precioUSD * TASA_USD;
 }
 
 actualizarTasa();
-setInterval(actualizarTasa, 10 * 60 * 1000); // 10 minutos exactos
+setInterval(actualizarTasa, 10 * 60 * 1000); // Cada 10 min busca el actual
 
 
 function tasaPorAlmacen(a){return String(a)==='1'?TASA_A1:TASA_A2;}
