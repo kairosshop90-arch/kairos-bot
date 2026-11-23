@@ -33,60 +33,6 @@ try{ if(fs.existsSync('futuras.json')) FUTURAS_COMPRAS = JSON.parse(fs.readFileS
 function guardarFuturas(){ try{ fs.writeFileSync('futuras.json', JSON.stringify(FUTURAS_COMPRAS)); }catch(e){} try{ backup_to_github(); }catch(e){} }
 let TASA_BASE=0;let TASA_A1=0;let TASA_A2=0;let TASA_USD=0;let TASA_EUR=0;
 //para actualizar el toque
-let TASA_USD = 0;      // Tasa base que lee de El Toque / CubaDivisa
-let TASA_ALMACEN_1 = 0; // Almacén 1 = +5
-let TASA_ALMACEN_2 = 0; // Almacén 2 = +10
-let TASA_EUR = 0;
-
-async function actualizarTasa() {
-  console.log('🔄 Buscando tasa ACTUAL...');
-
-  let nuevaTasa = null;
-  let fuente = '';
-
-  // 1. EL TOQUE
-  try {
-    const r = await fetch('https://api.eltoque.com/v1/trading_rates/current', { headers: { 'Accept': 'application/json' } });
-    const j = await r.json();
-    const usd = j?.trading_rates?.find(x => x.code === 'USD')?.rate;
-    const eur = j?.trading_rates?.find(x => x.code === 'EUR')?.rate;
-    if (usd) { nuevaTasa = parseFloat(usd); TASA_EUR = eur ? parseFloat(eur) : nuevaTasa; fuente = 'El Toque'; }
-  } catch(e) { console.log('El Toque falló:', e.message); }
-
-  // 2. CUBA DIVISA - respaldo
-  if (!nuevaTasa) {
-    try {
-      const r = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent('https://cubadivisas.com'));
-      const html = await r.text();
-      let limpio = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-      let m = limpio.match(/CUP\s*\/\s*USD\s*([0-9]{3,4})[,.]([0-9]{2})/)
-           || limpio.match(/USD\s*=\s*([0-9]{3,4})[,.]([0-9]{2})/);
-      if (m) { nuevaTasa = parseFloat(m[1] + '.' + (m[2] || '00')); fuente = 'CubaDivisa'; }
-    } catch(e) { console.log('CubaDivisa falló:', e.message); }
-  }
-
-  // Si logró leer el ACTUAL, calcula los almacenes
-  if (nuevaTasa) {
-    TASA_USD = nuevaTasa;
-    TASA_ALMACEN_1 = TASA_USD + 5;  // <-- Almacén 1
-    TASA_ALMACEN_2 = TASA_USD + 10; // <-- Almacén 2
-    console.log(`✅ ACTUAL: USD=${TASA_USD} | Almacén 1=${TASA_ALMACEN_1} | Almacén 2=${TASA_ALMACEN_2} | Fuente: ${fuente}`);
-    return;
-  }
-
-  console.log('⚠️ No se pudo leer, mantengo la anterior y reintento en 1 min:', TASA_USD);
-  setTimeout(actualizarTasa, 1 * 60 * 1000);
-}
-
-// Ejemplo de cómo usarlo en tus precios:
-function calcularPrecio(precioUSD, almacen) {
-  if (almacen === 1) return precioUSD * TASA_ALMACEN_1;
-  if (almacen === 2) return precioUSD * TASA_ALMACEN_2;
-  return precioUSD * TASA_USD;
-}
-
-actualizarTasa();
-setInterval(actualizarTasa, 10 * 60 * 1000); // Cada 10 min busca el actual
 
 
 function tasaPorAlmacen(a){return String(a)==='1'?TASA_A1:TASA_A2;}
