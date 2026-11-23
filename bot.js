@@ -26,31 +26,107 @@ let PENDIENTES_INFO={};
 let FUTURAS_COMPRAS={};
 try{ if(fs.existsSync('futuras.json')) FUTURAS_COMPRAS = JSON.parse(fs.readFileSync('futuras.json')); }catch(e){}
 function guardarFuturas(){ try{ fs.writeFileSync('futuras.json', JSON.stringify(FUTURAS_COMPRAS)); }catch(e){} try{ backup_to_github(); }catch(e){} }
-let TASA_BASE=0;let TASA_A1=0;let TASA_A2=0;let TASA_USD=0;let TASA_EUR=0;
-async function actualizarTasa(){
+let TASA_BASE=0;let TASA_A1=0;let TASA_A2=0;let TASA_USD=0;let TASA_EUR=0;let TASA_MLC=840.37;
+let FALLAS_SEGUIDAS=0;let MODO_MANUAL=false;
+let sockGlobal=null; // Para que avisarmeManual pueda usar sock
+
+function buscarMoneda(obj, codigo){
+  if(!obj || typeof obj !== 'object') return null;
+  if(Array.isArray(obj)){
+    let f = obj.find(x => (x.moneda||x.currency||x.code||'').toString().toUpperCase() === codigo);
+    if(f) return f.valor || f.tasa || f.precio || f.rate || f.price || f.value;
+    return null;
+  }
+  for(let k of Object.keys(obj)){
+    if(k.toUpperCase() === codigo){
+      let v = obj[k];
+      if(typeof v === 'object' && v !== null) return v.valor || v.tasa || v.precio || v.rate || v.price || v.value || v.venta || null;
+      return v;
+    }
+  }
+  for(let k of ['tasas','data','trmi','rates','result']){
+    if(obj[k]){ let r = buscarMoneda(obj[k], codigo); if(r) return r; }
+  }
+  return null;
+}
+
+async function avisarmeManual(motivo){
+  const msg = `🚨 *KAIROS - TASA FALLÓ 3 VECES* 🚨\n\n` +
+    `Oye Louis, El Toque y Cuba Divisa no me respondieron.\n` +
+    `Me quedé con la última tasa: USD ${TASA_USD} / EUR ${TASA_EUR}\n\n` +
+    `Para ponerla manual escríbeme:\n` +
+    `*!tasa 970*\n` +
+    `o\n` +
+    `*!tasa 970 1030 840*`;
+  console.log('📲 Avisando a Louis...');
   try{
-    const r = await fetch('https://api.eltoque.com/v1/tasas');
-    const j = await r.json();
-    console.log('Lo que me dio El Toque:', JSON.stringify(j).slice(0, 500));
-    let usd = j?.tasas?.USD || j?.tasas?.usd || j?.USD || j?.usd || j?.tasa || j?.trmi;
-    if(!usd && Array.isArray(j)){
-      let f = j.find(x => (x.moneda||x.currency||'') == 'USD');
-      if(f) usd = f.valor || f.tasa || f.precio;
+    if(sockGlobal) await sockGlobal.sendMessage(LOUIS_JID, { text: msg });
+    // También te escribe a tu LID por si acaso
+    if(sockGlobal) await sockGlobal.sendMessage(LOUIS_LID, { text: msg });
+  }catch(e){ console.log('No pude avisarte:', e.message); }
+}
+
+async function intentarFuente(url, nombre){
+  try{
+    const urlFinal = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now();
+    const r = await fetch(urlFinal, { cache:'no-store', headers:{ 'Cache-Control':'no-cache', 'User-Agent':'KAIROS-Bot' } });
+    if(r.status !== 200) return null;
+    const text = await r.text();
+    if(text.trim().startsWith('<')){
+      if(nombre === 'CubaDivisa'){
+        let m2 = text.match(/"USD"\s*:\s*([0-9.]+)/) || text.match(/USD.*?([0-9]{3},[0-9]{2})/);
+        if(m2) return { USD: parseFloat(m2[1].replace(',','.')), EUR: null, MLC: null, fuente: 'CubaDivisa-HTML' };
+        return null;
+      }
+      return null;
     }
-    if(!usd && Array.isArray(j?.tasas)){
-      let f = j.tasas.find(x => (x.moneda||x.currency||x.code||'') == 'USD');
-      if(f) usd = f.valor || f.tasa || f.precio || f.rate;
+    const j = JSON.parse(text);
+    let usd = buscarMoneda(j, 'USD');
+    let eur = buscarMoneda(j, 'EUR');
+    let mlc = buscarMoneda(j, 'MLC');
+    if(usd) return { USD: usd, EUR: eur, MLC: mlc, fuente: nombre };
+    return null;
+  }catch(e){ console.log(`❌ ${nombre} falló:`, e.message); return null; }
+}
+
+async function actualizarTasa(){
+  if(MODO_MANUAL){ console.log('⏸️ MODO MANUAL, no busco hasta que pongas !tasa'); return; }
+  console.log('--- Actualizando tasa... ' + new Date().toLocaleString('es-CU'));
+  let resultado = null;
+
+  // 1. EL TOQUE
+  resultado = await intentarFuente('https://inflando.vercel.app/api/tasas', 'ElToque');
+  if(!resultado) resultado = await intentarFuente('https://api.eltoque.com/v1/trmi', 'ElToque-API');
+  if(!resultado) resultado = await intentarFuente('https://api.eltoque.com/v1/tasas', 'ElToque-API2');
+
+  // 2. SI FALLA, CUBA DIVISA
+  if(!resultado){
+    console.log('⚠️ El Toque falló, voy a Cuba Divisa...');
+    resultado = await intentarFuente('https://cubadivisas.com/api/tasas', 'CubaDivisa');
+    if(!resultado) resultado = await intentarFuente('https://cubadivisas.com', 'CubaDivisa');
+  }
+
+  if(resultado && resultado.USD){
+    let nuevoUSD = Math.round(Number(resultado.USD));
+    if(nuevoUSD > 100 && nuevoUSD < 5000){
+      TASA_USD = nuevoUSD;
+      if(resultado.EUR) TASA_EUR = Math.round(Number(resultado.EUR));
+      if(resultado.MLC) TASA_MLC = Number(resultado.MLC);
+      FALLAS_SEGUIDAS = 0;
+      console.log(`✅ Tasa de ${resultado.fuente}: USD ${TASA_USD}`);
     }
-    if(usd){
-      TASA_USD = Math.round(Number(usd));
-      TASA_BASE = TASA_USD;
-      console.log('✅ Tasa REAL cogida: ' + TASA_USD);
-    } else {
-      console.log('❌ No encontré USD, me quedo con: ' + TASA_USD);
+  } else {
+    FALLAS_SEGUIDAS++;
+    console.log(`❌ Falla #${FALLAS_SEGUIDAS}/3 - Me quedo con: ${TASA_USD}`);
+    if(FALLAS_SEGUIDAS >= 3){
+      MODO_MANUAL = true;
+      await avisarmeManual('El Toque y Cuba Divisa no respondieron');
+      FALLAS_SEGUIDAS = 0;
     }
-  }catch(e){ console.log('Error tasa:', e.message); }
+  }
+
   if(!TASA_USD) TASA_USD = 960;
-  TASA_EUR = TASA_USD;
+  TASA_EUR = TASA_EUR || TASA_USD;
   TASA_BASE = TASA_USD;
   TASA_A1 = TASA_BASE + 5;
   TASA_A2 = TASA_BASE + 10;
