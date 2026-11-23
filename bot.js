@@ -290,3 +290,24 @@ if(ped.paso==='nota'){let nota=rawText.trim();if(nota.toLowerCase()==='sin nota'
 }
 });}
 start();
+
+// ========== IA POLLINATIONS CON LLAVE PARA KAIROS ==========
+async function preguntarIA(pregunta, nombreCliente){
+  try{
+    const key = process.env.POLLINATIONS_API_KEY;
+    const r = await fetch('https://text.pollinations.ai/openai', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'openai',
+        messages: [
+          { role: 'system', content: 'Eres KAIROS, asistente de una tienda en Cuba. Hablas cubano, corto, amable, vendes productos. No inventes precios. Si preguntan precio, diles que escriban catalogo.' },
+          { role: 'user', content: `Cliente ${nombreCliente} dice: ${pregunta}` }
+        ],
+        max_tokens: 400
+      })
+    });
+    const j = await r.json();
+    return j.choices?.[0]?.message?.content || 'No me respondió la IA, intenta de nuevo.';
+  }catch(e){ return 'Error con la IA: ' + e.message; }
+}
