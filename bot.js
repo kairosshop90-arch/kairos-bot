@@ -34,7 +34,67 @@ function guardarFuturas(){ try{ fs.writeFileSync('futuras.json', JSON.stringify(
 let TASA_BASE=0;let TASA_A1=0;let TASA_A2=0;let TASA_USD=0;let TASA_EUR=0;
 //para actualizar el toque
 
+// ==== ARCHIVO COMPLETO - BORRA TODO LO ANTERIOR Y PEGA SOLO ESTO ====
+const express = require('express');
+const app = express();
+const PORT = process.env.PORT || 3000;
 
+// SOLO UNA VEZ se declara, aquí arriba y más nunca
+let TASA_USD = 0;
+let TASA_ALMACEN_1 = 0; // Almacén 1 = +5
+let TASA_ALMACEN_2 = 0; // Almacén 2 = +10
+let TASA_EUR = 0;
+let ULTIMA_FUENTE = 'ninguna';
+
+async function actualizarTasa() {
+  console.log('🔄 Buscando tasa ACTUAL...', new Date().toLocaleTimeString());
+  let nuevaTasa = null;
+  let fuente = '';
+
+  // 1. EL TOQUE
+  try {
+    const r = await fetch('https://api.eltoque.com/v1/trading_rates/current', { headers: { 'Accept': 'application/json' } });
+    const j = await r.json();
+    const usd = j?.trading_rates?.find(x => x.code === 'USD')?.rate;
+    const eur = j?.trading_rates?.find(x => x.code === 'EUR')?.rate;
+    if (usd) { nuevaTasa = parseFloat(usd); TASA_EUR = eur ? parseFloat(eur) : nuevaTasa; fuente = 'El Toque'; }
+  } catch(e) { console.log('El Toque falló:', e.message); }
+
+  // 2. CUBA DIVISA - respaldo
+  if (!nuevaTasa) {
+    try {
+      const r = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent('https://cubadivisas.com'));
+      const html = await r.text();
+      let limpio = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+      let m = limpio.match(/CUP\s*\/\s*USD\s*([0-9]{3,4})[,.]([0-9]{2})/)
+           || limpio.match(/USD\s*=\s*([0-9]{3,4})[,.]([0-9]{2})/);
+      if (m) { nuevaTasa = parseFloat(m[1] + '.' + (m[2] || '00')); fuente = 'CubaDivisa'; }
+    } catch(e) { console.log('CubaDivisa falló:', e.message); }
+  }
+
+  if (nuevaTasa) {
+    TASA_USD = nuevaTasa;
+    TASA_ALMACEN_1 = TASA_USD + 5;
+    TASA_ALMACEN_2 = TASA_USD + 10;
+    ULTIMA_FUENTE = fuente;
+    console.log(`✅ ACTUAL: USD=${TASA_USD} | Almacén 1=${TASA_ALMACEN_1} | Almacén 2=${TASA_ALMACEN_2} | Fuente: ${fuente}`);
+    return;
+  }
+  console.log('⚠️ No se pudo leer, mantengo anterior:', TASA_USD);
+}
+
+// Para que puedas ver la tasa desde el navegador: tu-url.onrender.com/tasa
+app.get('/tasa', (req, res) => {
+  res.json({ TASA_USD, TASA_ALMACEN_1, TASA_ALMACEN_2, TASA_EUR, fuente: ULTIMA_FUENTE, hora: new Date().toISOString() });
+});
+
+app.get('/', (req, res) => {
+  res.send(`KAIROS 👑 | USD: ${TASA_USD} | Almacén 1: ${TASA_ALMACEN_1} | Almacén 2: ${TASA_ALMACEN_2}`);
+});
+
+app.listen(PORT, () => console.log('Servidor KAIROS en puerto ' + PORT));
+actualizarTasa();
+setInterval(actualizarTasa, 10 * 60 * 1000);
 function tasaPorAlmacen(a){return String(a)==='1'?TASA_A1:TASA_A2;}
 function listaPorAlmacen(a){return Object.values(CATALOGO).filter(p=>String(p.almacen)===String(a));}
 function textoCatalogoAlmacen(a){
