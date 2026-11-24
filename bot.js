@@ -402,4 +402,4 @@ Cliente ${nombreCliente} pregunta: ${pregunta}`;
     return 'Error con la IA: ' + e.message;
   }
 }
-}
+
