@@ -308,46 +308,51 @@ if(ped.paso==='nota'){let nota=rawText.trim();if(nota.toLowerCase()==='sin nota'
 }
 });}
 
-    // codigo de la ia
-  async function preguntarIA(pregunta, nombreCliente){
+    
+// ========== IA KAIROS ==========
+let MEMORIA = {};
+
+async function preguntarIA(pregunta, nombreCliente){
   try{
+    // 1. Catálogo real
     let textoCatalogo = '';
     for(let k in CATALOGO){
       let p = CATALOGO[k];
       let agotado = AGOTADOS.has(k) ? ' - AGOTADO' : '';
       textoCatalogo += `- ${p.nombre} - ${p.precioUSD} USD - Almacén ${p.almacen}${agotado}\n`;
     }
-    let textoInfo = '';
-    for(let k in INFO_PRODUCTOS){
-      textoInfo += `- ${k}: ${INFO_PRODUCTOS[k].texto}\n`;
-    }
-    let textoMensajeria = 'MENSAJERIA A1:\n';
-    for(let z in MENSAJERIA_A1) textoMensajeria += `${z}: $${MENSAJERIA_A1[z]}\n`;
-    textoMensajeria += '\nMENSAJERIA A2:\n';
-    for(let z in MENSAJERIA_A2) textoMensajeria += `${z}: $${MENSAJERIA_A2[z]}\n`;
+    if(!textoCatalogo) textoCatalogo = 'Catálogo vacío por ahora.';
 
-    let prompt = `Eres KAIROS, vendedor cubano, corto y amable.
-TASA: USD = ${TASA_USD} CUP, Almacén 1 = ${TASA_A1}, Almacén 2 = ${TASA_A2}. EUR = mismo que USD.
-CATALOGO:
-${textoCatalogo.slice(0, 2000)}
-INFO:
-${textoInfo.slice(0, 800)}
-${textoMensajeria.slice(0, 3000)}
-REGLAS: Responde corto, máximo 6 líneas. Si preguntan mensajería a Boyeros, Boyero o Bullero es lo mismo, da el precio de Boyeros. Nunca inventes precio ni tiempo de entrega. Si quiere comprar dile que escriba catalogo. Tiempo de entrega 24 horas.
-Cliente ${nombreCliente} pregunta: ${pregunta}`;
+    // 2. Memoria del cliente
+    if(!MEMORIA[nombreCliente]) MEMORIA[nombreCliente] = [];
+    MEMORIA[nombreCliente].push('Cliente: ' + pregunta);
+    if(MEMORIA[nombreCliente].length > 6) MEMORIA[nombreCliente] = MEMORIA[nombreCliente].slice(-6);
+    let historial = MEMORIA[nombreCliente].join('\n');
+
+    // 3. Personalidad dinámica
+    let prompt = `Eres KAIROS, vendedor de la tienda de Louis en Cuba. Eres cubano, gracioso, rápido, usas emojis, hablas como un socio, nunca repites la misma frase, nunca dices que eres IA.
+Tu trabajo es vender, no solo responder. Si preguntan precio, dices precio en USD y en CUP con la tasa, y ofreces otro producto parecido. Si dicen que está caro, negocias un poco pero sin bajar de 5 USD de ganancia.
+Cliente: ${nombreCliente}
+Tasa hoy: 1 USD = ${TASA_USD} CUP
+Catálogo actual:
+${textoCatalogo}
+Conversación anterior:
+${historial}
+Pregunta nueva: ${pregunta}
+Responde corto, máximo 4 líneas, dinámico y con picardía cubana.`;
 
     const r = await fetch('https://text.pollinations.ai/openai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'openai', messages: [{ role: 'user', content: prompt }], max_tokens: 500 })
+      body: JSON.stringify({ model: 'openai', messages: [{ role: 'user', content: prompt }], max_tokens: 500, temperature: 0.9 })
     });
     const data = await r.json();
     const texto = data.choices?.[0]?.message?.content || '';
     if(!texto || texto.length < 2) return 'No me respondió la IA, intenta de nuevo.';
+    MEMORIA[nombreCliente].push('KAIROS: ' + texto);
     return texto.slice(0, 1500);
   } catch(e){
     return 'Error con la IA: ' + e.message;
- }
- }
- 
+  }
+}
 start();
