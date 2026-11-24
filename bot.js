@@ -252,7 +252,17 @@ if(esLouis && text.startsWith('!tasa')){
     return;
   }
 }
-if(text.startsWith('ia ') || text.startsWith('pregunta ') || text.startsWith('kairos ')){
+// IA NO BUSCA MENSAJERIA, LA BUSCA EL BOT EN LA TABLA
+if(text.includes('mensajeria') || text.includes('mensajería') || text.includes('envio') || text.includes('envío') || text.includes('llevar') || text.includes('domicilio')){
+  let zona = rawText.replace(/^(ia|pregunta|kairos)\s+/i,'').replace(/mensajeria|mensajería|envio|envío|cuanto cuesta|cuánto cuesta|a |para |llevar|el |la/gi,'').trim();
+  let c1 = calcularMensajeria('1', zona, [{nombre:'PRODUCTO NORMAL', cant:1}]);
+  let c2 = calcularMensajeria('2', zona, [{nombre:'PRODUCTO NORMAL', cant:1}]);
+  if(c1.zona !== '?' || c2.zona !== '?'){
+    await send(`🚚 MENSAJERÍA A ${zona.toUpperCase()}\n\nAlmacén 1: $${c1.costo.toLocaleString()} MN (${c1.zona})\nAlmacén 2: $${c2.costo.toLocaleString()} MN (${c2.zona})\n\n¿Quieres que te haga el vale? Escribe catalogo`);
+    return;
+  }
+}
+                                                                                                                                                                                                                                                                                                                                                                                                                            if(text.startsWith('ia ') || text.startsWith('pregunta ') || text.startsWith('kairos ')){
   let pregunta = rawText.replace(/^(ia|pregunta|kairos)\s+/i, '').trim();
   if(!pregunta){ await send('Dime la pregunta. Ej: ia ¿Qué nevera me recomiendas?'); return; }
   await send('Pensando... 🤔');
