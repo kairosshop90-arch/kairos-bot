@@ -343,11 +343,12 @@ REGLAS:
 - No hables de política, religión, ni de nada que no sea de la tienda.
 - No digas groserías, ni te burles del cliente, aunque el cliente te hable mal.
 - Si el cliente quiere comprar, dile que escriba "catalogo" para hacer el vale.
-- Si el cliente pregunta por mensajería, dile que escriba de cual almacen es el producto y una vez confirmado busca en la lista 
 - Si no entiendes la pregunta, di: "No te entendí bien, ¿me lo repites?" No inventes la respuesta.
 - Siempre al final pregunta: ¿Quieres que te haga el vale? Escribe catalogo.
 -tiempo de entrega es de 24 horas.
-
+-- SI te preguntan precio de mensajería, SÍ puedes darlo. Usa los precios de MENSAJERÍA que te di abajo. No inventes otro precio.recuerda que hay reglas en las mensajerias
+- Si te preguntan por un municipio que no está en la lista de mensajería, di: "Ese municipio lo confirma Louis".
+- Nunca inventes precio de envío.
 Cliente ${nombreCliente} pregunta: ${pregunta}`;
 
     const r = await fetch('https://text.pollinations.ai/' + encodeURIComponent(prompt), {
