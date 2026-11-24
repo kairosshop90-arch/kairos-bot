@@ -351,22 +351,44 @@ REGLAS:
 - Nunca inventes precio de envío.
 Cliente ${nombreCliente} pregunta: ${pregunta}`;
 
-    async function preguntarIA(prompt) {
-  try {
+    // codigo de la ia
+  async function preguntarIA(pregunta, nombreCliente){
+  try{
+    let textoCatalogo = '';
+    for(let k in CATALOGO){
+      let p = CATALOGO[k];
+      let agotado = AGOTADOS.has(k) ? ' - AGOTADO' : '';
+      textoCatalogo += `- ${p.nombre} - ${p.precioUSD} USD - Almacén ${p.almacen}${agotado}\n`;
+    }
+    let textoInfo = '';
+    for(let k in INFO_PRODUCTOS){
+      textoInfo += `- ${k}: ${INFO_PRODUCTOS[k].texto}\n`;
+    }
+    let textoMensajeria = 'MENSAJERIA A1:\n';
+    for(let z in MENSAJERIA_A1) textoMensajeria += `${z}: $${MENSAJERIA_A1[z]}\n`;
+    textoMensajeria += '\nMENSAJERIA A2:\n';
+    for(let z in MENSAJERIA_A2) textoMensajeria += `${z}: $${MENSAJERIA_A2[z]}\n`;
+
+    let prompt = `Eres KAIROS, vendedor cubano, corto y amable.
+TASA: USD = ${TASA_USD} CUP, Almacén 1 = ${TASA_A1}, Almacén 2 = ${TASA_A2}. EUR = mismo que USD.
+CATALOGO:
+${textoCatalogo.slice(0, 2000)}
+INFO:
+${textoInfo.slice(0, 800)}
+${textoMensajeria.slice(0, 3000)}
+REGLAS: Responde corto, máximo 6 líneas. Si preguntan mensajería a Boyeros, Boyero o Bullero es lo mismo, da el precio de Boyeros. Nunca inventes precio ni tiempo de entrega. Si quiere comprar dile que escriba catalogo. Tiempo de entrega 24 horas.
+Cliente ${nombreCliente} pregunta: ${pregunta}`;
+
     const r = await fetch('https://text.pollinations.ai/openai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'openai',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 500
-      })
+      body: JSON.stringify({ model: 'openai', messages: [{ role: 'user', content: prompt }], max_tokens: 500 })
     });
     const data = await r.json();
     const texto = data.choices?.[0]?.message?.content || '';
     if(!texto || texto.length < 2) return 'No me respondió la IA, intenta de nuevo.';
     return texto.slice(0, 1500);
-  } catch(e) { 
-    return 'Error con la IA: ' + e.message; 
+  } catch(e){
+    return 'Error con la IA: ' + e.message;
   }
 }
