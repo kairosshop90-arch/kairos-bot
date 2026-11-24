@@ -400,6 +400,6 @@ Cliente ${nombreCliente} pregunta: ${pregunta}`;
     return texto.slice(0, 1500);
   } catch(e){
     return 'Error con la IA: ' + e.message;
-  }
-}
-
+ }
+ }
+ }
