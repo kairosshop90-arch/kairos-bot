@@ -351,11 +351,17 @@ REGLAS:
 - Nunca inventes precio de envío.
 Cliente ${nombreCliente} pregunta: ${pregunta}`;
 
-    const r = await fetch('https://text.pollinations.ai/' + encodeURIComponent(prompt), {
-      headers: { 'Accept': 'text/plain' }
-    });
-    const texto = await r.text();
-    if(!texto || texto.length < 2) return 'No me respondió la IA, intenta de nuevo.';
-    return texto.slice(0, 1500);
-  }catch(e){ return 'Error con la IA: ' + e.message; }
-}
+    const r = await fetch('https://text.pollinations.ai/openai', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    model: 'openai',
+    messages: [{ role: 'user', content: prompt }],
+    max_tokens: 500
+  })
+});
+const data = await r.json();
+const texto = data.choices?.[0]?.message?.content || '';
+if(!texto || texto.length < 2) return 'No me respondió la IA, intenta de nuevo.';
+return texto.slice(0, 1500);
+} catch(e){ return 'Error con la IA: ' + e.message; }
