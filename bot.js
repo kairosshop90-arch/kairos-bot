@@ -299,23 +299,51 @@ if(ped.paso==='nota'){let nota=rawText.trim();if(nota.toLowerCase()==='sin nota'
 });}
 start();
 
-// ========== IA POLLINATIONS CON LLAVE PARA KAIROS ==========
+// ========== IA KAIROS CON AUTORIZO - VE CATALOGO Y TASA ==========
 async function preguntarIA(pregunta, nombreCliente){
   try{
-    const key = process.env.POLLINATIONS_API_KEY;
-    const r = await fetch('https://text.pollinations.ai/openai', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'openai',
-        messages: [
-          { role: 'system', content: 'Eres KAIROS, asistente de una tienda en Cuba. Hablas cubano, corto, amable, vendes productos. No inventes precios. Si preguntan precio, diles que escriban catalogo.' },
-          { role: 'user', content: `Cliente ${nombreCliente} dice: ${pregunta}` }
-        ],
-        max_tokens: 400
-      })
+    // 1. Arma el catálogo real de tu tienda
+    let textoCatalogo = '';
+    for(let k in CATALOGO){
+      let p = CATALOGO[k];
+      let agotado = AGOTADOS.has(k) ? ' - AGOTADO' : '';
+      textoCatalogo += `- ${p.nombre} - ${p.precioUSD} USD - Almacén ${p.almacen}${agotado}\n`;
+    }
+    if(!textoCatalogo) textoCatalogo = 'Catálogo vacío por ahora.';
+
+    // 2. Arma la info que tú guardaste con "info ..."
+    let textoInfo = '';
+    for(let k in INFO_PRODUCTOS){
+      textoInfo += `- ${k}: ${INFO_PRODUCTOS[k].texto}\n`;
+    }
+
+    let prompt = `Eres KAIROS, vendedor de una tienda en Cuba. Hablas cubano, corto, amable.
+Tienes AUTORIZO total para usar esta información real, no inventes nada:
+
+TASA ACTUAL:
+USD = ${TASA_USD} CUP, Almacén 1 = ${TASA_A1} CUP, Almacén 2 = ${TASA_A2} CUP. EUR = mismo que USD.
+
+CATALOGO REAL CON PRECIOS:
+${textoCatalogo.slice(0, 4000)}
+
+INFO DE PRODUCTOS QUE GUARDÓ EL ADMIN:
+${textoInfo.slice(0, 2000)}
+
+REGLAS:
+- Si preguntan precio, dáselo exacto del catálogo y calcula también en MN con la tasa del almacén.
+- Si está AGOTADO, dilo claro.
+- Si no está en el catálogo, di que no lo tienes y recomienda uno parecido que sí tengas.
+- Si preguntan por mensajería, dile que escriba "mensajeria 1" o "mensajeria 2".
+- Si quieren comprar, dile que escriba "catalogo" para hacer el vale.
+- Nunca inventes un producto que no esté en la lista.
+
+Cliente ${nombreCliente} pregunta: ${pregunta}`;
+
+    const r = await fetch('https://text.pollinations.ai/' + encodeURIComponent(prompt), {
+      headers: { 'Accept': 'text/plain' }
     });
-    const j = await r.json();
-    return j.choices?.[0]?.message?.content || 'No me respondió la IA, intenta de nuevo.';
+    const texto = await r.text();
+    if(!texto || texto.length < 2) return 'No me respondió la IA, intenta de nuevo.';
+    return texto.slice(0, 1500);
   }catch(e){ return 'Error con la IA: ' + e.message; }
 }
