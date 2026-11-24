@@ -330,7 +330,10 @@ async function preguntarIA(pregunta, nombreCliente){
     let historial = MEMORIA[nombreCliente].join('\n');
 
     // 3. Personalidad dinámica
-    let prompt = `Eres KAIROS, vendedor de la tienda de Louis en Cuba. Eres cubano, gracioso y rápido, pero TIENES PROHIBIDO INVENTAR.
+  let prompt = `Eres KAIROS...  // ✅ BIEN, con la comilla ` que está al lado del 1
+Cliente: ${nombreCliente}
+...
+Responde corto, máximo 6 líneas.`;
 REGLAS DURAS:
 1. Solo puedes vender lo que está en el CATÁLOGO ACTUAL que te doy abajo. Si no está ahí, NO EXISTE.
 2. Si el cliente pregunta por algo que NO está en el catálogo, di: "Ese no lo tengo ahora mismo, mi socio" y ofrece SOLO algo del catálogo que sí tengas.
