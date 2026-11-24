@@ -307,59 +307,6 @@ if(ped.paso==='direccion'){ped.direccion=rawText;ped.paso='nota';await send('Ya 
 if(ped.paso==='nota'){let nota=rawText.trim();if(nota.toLowerCase()==='sin nota'||nota.toLowerCase()==='no'||nota.toLowerCase()==='ninguna'||nota.toLowerCase()==='sin notas')nota='';ped.nota=nota;let almacenes=[...new Set(ped.productos.map(p=>String(p.almacen)))];let totalMens=0;let detalles=[];let textoVales='';for(const a of almacenes){CONTADOR++;let prodsA=ped.productos.filter(p=>String(p.almacen)===a);let totalA=prodsA.reduce((s,p)=>s+p.precioUSD*p.cant,0);let totalMNA=prodsA.reduce((s,p)=>s+p.precioUSD*p.cant*tasaPorAlmacen(a),0);let calc=calcularMensajeria(a,ped.direccion,prodsA);totalMens+=calc.costo;detalles.push('A'+a+': $'+calc.costo+' ('+calc.detalle+')');let vale={numero:CONTADOR,gestor:from,gestorNombre:ped.gestorNombre||GESTORES[from]||nombreGestor,cliente:ped.cliente,telefonoCliente:ped.telefonoCliente,metodoPago:ped.metodoPago,productos:prodsA,tipo:'mensajeria',direccion:ped.direccion,nota:ped.nota,totalUSD:totalA,costoMensajeria:calc.costo,almacen:a,detalleMensajeria:calc.detalle};VALES[CONTADOR]=vale;let tv='VALE KAIROS-'+String(CONTADOR).padStart(3,'0')+' (PENDIENTE) - ALMACÉN '+a+'\n\nGestor: '+vale.gestorNombre+'\nCliente: '+vale.cliente+'\nTelefono: '+vale.telefonoCliente+'\nPago: '+vale.metodoPago+'\nProductos:\n'+prodsA.map(p=>'- '+p.nombre+' x'+p.cant+' = '+(p.precioUSD*p.cant)+' USD').join('\n')+'\nTotal USD/EUR: '+totalA+'\nTotal MN: '+totalMNA.toLocaleString()+' MN\nMensajeria A'+a+': '+calc.costo+' MN ('+calc.detalle+')\nDireccion: '+ped.direccion+(ped.nota?'\n📝 Nota: '+ped.nota:'')+'\n\nLouis pon: kairos-'+String(CONTADOR).padStart(3,'0')+' confirmado';textoVales+='KAIROS-'+String(CONTADOR).padStart(3,'0')+' (A'+a+') ';await sock.sendMessage(LOUIS_LID,{text:tv});}let totalUSD=ped.productos.reduce((s,p)=>s+p.precioUSD*p.cant,0);let totalMN=totalMNProductos(ped.productos);delete PEDIDOS[from];await send('Vales creados: '+textoVales+'\nMensajeria total: '+totalMens.toLocaleString()+' MN\n'+detalles.join('\n')+'\nTotal productos MN: '+totalMN.toLocaleString()+(ped.nota?'\n📝 Nota: '+ped.nota:'')+'\nEnviado a Louis.');return;}
 }
 });}
-start();
-
-// ========== IA KAIROS CON AUTORIZO - VE CATALOGO Y TASA ==========
-async function preguntarIA(pregunta, nombreCliente){
-  try{
-    // 1. Arma el catálogo real de tu tienda
-    let textoCatalogo = '';
-    for(let k in CATALOGO){
-      let p = CATALOGO[k];
-      let agotado = AGOTADOS.has(k) ? ' - AGOTADO' : '';
-      textoCatalogo += `- ${p.nombre} - ${p.precioUSD} USD - Almacén ${p.almacen}${agotado}\n`;
-    }
-    if(!textoCatalogo) textoCatalogo = 'Catálogo vacío por ahora.';
-
-    // 2. Arma la info que tú guardaste con "info ..."
-    let textoInfo = '';
-    for(let k in INFO_PRODUCTOS){
-      textoInfo += `- ${k}: ${INFO_PRODUCTOS[k].texto}\n`;
-    }
-
-    let prompt = `Eres KAIROS, vendedor de una tienda en Cuba. Hablas cubano, corto, amable.
-Tienes AUTORIZO total para usar esta información real, no inventes nada:
-
-TASA ACTUAL:
-USD = ${TASA_USD} CUP, Almacén 1 = ${TASA_A1} CUP, Almacén 2 = ${TASA_A2} CUP. EUR = mismo que USD.
-
-CATALOGO REAL CON PRECIOS:
-${textoCatalogo.slice(0, 4000)}
-
-INFO DE PRODUCTOS QUE GUARDÓ EL ADMIN:
-${textoInfo.slice(0, 2000)}
-
-REGLAS:
-- Eres KAI, vendedor cubano, amable, corto y directo. Hablas como cubano, sin palabras raras.
-- Responde siempre corto, máximo 6 líneas. No hagas testamentos.
-- Si preguntan precio, dáselo exacto del catálogo y calcula también en MN con la tasa del almacén. Nunca redondees ni cambies el precio.
-- Si está AGOTADO, dilo claro: "Ese ahora mismo está agotado". Y recomienda uno parecido que sí tengas.
-- Si no está en el catálogo, di que no lo tienes. Nunca inventes un producto que no esté en la lista.
-- NUNCA inventes tiempos de entrega, horarios de despacho, días hábiles, ni disponibilidad. Si no está en el catálogo, NO lo sabes.
-- Si preguntan por entrega, despacho, cuándo llega, o algo que no está en el catálogo, responde: "Eso lo confirma Louis, escríbele o escribe mensajeria 1 o mensajeria 2 para ver el precio".
-- Nunca des descuento, rebaja, ni precio especial si no te lo autorizó Louis. El precio es el del catálogo.
-- Nunca prometas que algo llega mañana, pasado o un día exacto. Eso solo lo confirma Louis.
-- No hables de otras tiendas, solo de KAIROS.
-- No hables de política, religión, ni de nada que no sea de la tienda.
-- No digas groserías, ni te burles del cliente, aunque el cliente te hable mal.
-- Si el cliente quiere comprar, dile que escriba "catalogo" para hacer el vale.
-- Si no entiendes la pregunta, di: "No te entendí bien, ¿me lo repites?" No inventes la respuesta.
-- Siempre al final pregunta: ¿Quieres que te haga el vale? Escribe catalogo.
--tiempo de entrega es de 24 horas.
--- SI te preguntan precio de mensajería, SÍ puedes darlo. Usa los precios de MENSAJERÍA que te di abajo. No inventes otro precio.recuerda que hay reglas en las mensajerias
-- Si te preguntan por un municipio que no está en la lista de mensajería, di: "Ese municipio lo confirma Louis".
-- Nunca inventes precio de envío.
-Cliente ${nombreCliente} pregunta: ${pregunta}`;
 
     // codigo de la ia
   async function preguntarIA(pregunta, nombreCliente){
