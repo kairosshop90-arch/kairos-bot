@@ -344,7 +344,7 @@ Responde corto, máximo 4 líneas, dinámico y con picardía cubana.`;
     const r = await fetch('https://text.pollinations.ai/openai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'openai', messages: [{ role: 'user', content: prompt }], max_tokens: 500, temperature: 0.9 })
+      body: JSON.stringify({ model: 'openai', messages: [{ role: 'user', content: prompt }], max_tokens: 500, temperature: 0.3 })
     });
     const data = await r.json();
     const texto = data.choices?.[0]?.message?.content || '';
