@@ -3,7 +3,7 @@ const http=require('http');const QRCode=require('qrcode');const fs=require('fs')
 async function backup_to_github(){try{const token=process.env.GITHUB_TOKEN;const repo=process.env.GITHUB_REPO;if(!token||!repo)return;const datos={catalogo:CATALOGO,admins:[...ADMIN_OK],agotados:[...AGOTADOS],gestores:GESTORES,vales:VALES,contador:CONTADOR,comisiones:COMISIONES,info_productos:INFO_PRODUCTOS,fecha:new Date().toISOString()};const content=Buffer.from(JSON.stringify(datos,null,2)).toString('base64');const url=`https://api.github.com/repos/${repo}/contents/kairos-backup.json`;const headers={'Authorization':`token ${token}`,'Accept':'application/vnd.github.v3+json','User-Agent':'kairos-bot'};let sha=null;const getRes=await fetch(url,{headers});if(getRes.ok){const j=await getRes.json();sha=j.sha;}const body={message:`Backup auto ${new Date().toLocaleString('es-CU')}`,content};if(sha)body.sha=sha;await fetch(url,{method:'PUT',headers,body:JSON.stringify(body)});}catch(e){console.log('Error backup:',e.message);}}
   // AQUI SE CREA EL SERVIDOR
 // ===== SERVIDOR WEB KAIROS - PAGINA + PANEL + QR =====
-const path = require('path');
+const fs = require('fs');
 
 function leerBody(req){
   return new Promise(r=>{
@@ -99,8 +99,20 @@ http.createServer(async(req,res)=>{
     return;
   }
 
-  res.writeHead(200,{'Content-Type':'text/plain; charset=utf-8'});
-  res.end('KAIROS OK - Ve a /qr para vincular | / para tienda | /admin para panel');
+  // --- TIENDA / ---
+if(url==='/' || url==='/index.html'){
+  try{
+    const html = fs.readFileSync(path.join(__dirname,'public','index.html'),'utf8');
+    res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});
+    res.end(html); return;
+  }catch(e){
+    res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});
+    res.end('<h1>KAIROS</h1><p>No se encontró public/index.html</p>'); return;
+  }
+}
+
+res.writeHead(200,{'Content-Type':'text/plain; charset=utf-8'});
+res.end('KAIROS OK - Ve a /qr para vincular | /admin para panel');
 }).listen(process.env.PORT||10000,()=>console.log('Puerto abierto'));
 
 const {default:makeWASocket,useMultiFileAuthState,DisconnectReason}=require('@whiskeysockets/baileys');const pino=require('pino');
