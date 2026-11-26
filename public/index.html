@@ -1,23 +1,63 @@
-<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KAIROS - Tienda</title><style>body{font-family:Arial;background:#f5f5f5;margin:0;padding:15px}h1{text-align:center} .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px} .card{background:#fff;border-radius:12px;padding:12px;text-align:center;box-shadow:0 2px 8px #0001} .card h3{margin:5px 0;font-size:15px} .precio{font-weight:bold;color:#0a7;font-size:18px} .mn{color:#666;font-size:13px} button{background:#25D366;border:0;padding:10px 14px;border-radius:8px;font-weight:bold;width:100%;margin-top:8px} input,select{width:100%;padding:10px;margin:5px 0;border:1px solid #ccc;border-radius:8px;box-sizing:border-box} #pedido{background:#fff;padding:15px;border-radius:12px;margin-top:15px} .agotado{color:red;font-weight:bold}</style></head>
-<body><h1>🛒 KAIROS</h1><p id="tasa" style="text-align:center"></p><div id="catalogo" class="grid">Cargando...</div>
-<div id="pedido"><h3>Tu Pedido</h3><div id="carrito">Vacío</div><input id="nombre" placeholder="Nombre Apellido Carnet"><input id="telefono" placeholder="Teléfono 535..."><select id="pago"><option value="MN">Pago en MN</option><option value="USD">Pago en USD</option><option value="EUR">Pago en EUR</option></select><select id="tipo"><option value="mensajeria">Mensajería</option><option value="recogida">Recogida</option></select><input id="direccion" placeholder="Dirección completa"><button onclick="enviar()">ENVIAR PEDIDO POR WHATSAPP</button><p id="msg"></p></div>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KAIROS - Tienda</title>
+<style>
+*{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;background:#f2f2f2;padding:15px}
+header{background:#111;color:#fff;padding:20px;text-align:center;border-radius:12px}
+header h1{margin:0;font-size:28px;letter-spacing:3px}
+header p{margin:5px 0 0;opacity:.8}
+#buscador{width:100%;padding:12px;margin:15px 0;border-radius:10px;border:1px solid #ccc;font-size:16px}
+#tasas{text-align:center;background:#fff;padding:10px;border-radius:10px;margin-bottom:15px;font-weight:bold}
+#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
+.card{background:#fff;border-radius:12px;padding:12px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.1)}
+.card h3{font-size:15px;margin:5px 0;min-height:38px}
+.precio{font-size:20px;font-weight:bold;color:#111}
+.mn{color:#666;font-size:14px}
+button{background:#25D366;color:#fff;border:none;padding:10px 12px;border-radius:8px;width:100%;margin-top:8px;font-weight:bold;cursor:pointer;font-size:14px}
+#carrito{position:fixed;bottom:15px;left:15px;right:15px;background:#111;color:#fff;padding:14px;border-radius:12px;display:none;justify-content:space-between;align-items:center}
+#carrito b{font-size:16px}
+</style>
+</head>
+<body>
+<header><h1>KAIROS</h1><p>Tienda Online - La Habana</p></header>
+<input id="buscador" placeholder="🔍 Buscar producto..." oninput="filtrar()">
+<div id="tasas">Cargando tasas...</div>
+<div id="grid">Cargando productos...</div>
+<div id="carrito"><span id="carritoTexto"></span><button style="width:auto;background:#25D366" onclick="pedir()">PEDIR POR WHATSAPP</button></div>
 <script>
-let PRODS=[], CARRO={};
+let datos=null, carrito=[];
 async function cargar(){
-  const r=await fetch('/api/catalogo'); const d=await r.json();
-  PRODS=d.productos; document.getElementById('tasa').innerText='Tasa hoy: 1 USD = '+d.tasaUSD+' CUP | A1: '+d.tasaA1+' | A2: '+d.tasaA2;
-  document.getElementById('catalogo').innerHTML=PRODS.map((p,i)=>`<div class="card"><h3>${p.nombre}</h3><p>Almacén ${p.almacen}</p><div class="precio">${p.precioUSD} USD</div><div class="mn">${p.precioMN.toLocaleString()} MN</div>${p.info?`<p style="font-size:12px">${p.info.slice(0,120)}</p>`:''}${p.agotado?'<div class="agotado">AGOTADO</div>':`<button onclick="add(${i})">Agregar</button>`}</div>`).join('');
+  let r=await fetch('/api/catalogo'); datos=await r.json();
+  document.getElementById('tasas').innerText=`USD: ${datos.tasaUSD} MN | Almacén 1: ${datos.tasaA1} MN | Almacén 2: ${datos.tasaA2} MN`;
+  mostrar(datos.productos);
 }
-function add(i){ const p=PRODS[i]; CARRO[p.nombre]=(CARRO[p.nombre]||0)+1; verCarro(); }
-function verCarro(){ let t=''; for(let k in CARRO) t+=`${k} x${CARRO[k]}<br>`; document.getElementById('carrito').innerHTML=t||'Vacío'; }
-async function enviar(){
-  const productos=Object.keys(CARRO).map(k=>({nombre:k,cant:CARRO[k]}));
-  if(!productos.length) return alert('Agrega algo primero');
-  const body={ cliente:document.getElementById('nombre').value, telefono:document.getElementById('telefono').value, productos, pago:document.getElementById('pago').value, tipo:document.getElementById('tipo').value, direccion:document.getElementById('direccion').value };
-  const r=await fetch('/api/pedido',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  const d=await r.json();
-  document.getElementById('msg').innerText='✅ Pedido enviado! Vale KAIROS-'+d.vale+' Total: '+d.totalMN.toLocaleString()+' MN + Mensajería '+d.mensajeria+' MN. Louis te confirma por WhatsApp.';
-  CARRO={}; verCarro();
+function mostrar(lista){
+  let grid=document.getElementById('grid');
+  if(!lista.length){grid.innerHTML='<p style="grid-column:1/-1;text-align:center">No hay productos todavía. Agrega desde /admin</p>';return;}
+  grid.innerHTML=lista.map(p=>{
+    let tasa=p.almacen=="2"?datos.tasaA2:datos.tasaA1;
+    return `<div class="card"><h3>${p.nombre}</h3><div class="precio">$${p.precioUSD} USD</div><div class="mn">${(p.precioUSD*tasa).toLocaleString()} MN</div><div style="font-size:12px;color:#888">Almacén ${p.almacen}</div><button onclick="agregar('${p.nombre.replace(/'/g,"")}') ">+ AGREGAR</button></div>`
+  }).join('');
+}
+function filtrar(){
+  let q=document.getElementById('buscador').value.toLowerCase();
+  mostrar(datos.productos.filter(p=>p.nombre.toLowerCase().includes(q)));
+}
+function agregar(n){carrito.push(n); actualizar();}
+function actualizar(){
+  let c=document.getElementById('carrito');
+  if(!carrito.length){c.style.display='none';return;}
+  c.style.display='flex';
+  document.getElementById('carritoTexto').innerText=`🛒 ${carrito.length} productos`;
+}
+function pedir(){
+  let msg="Hola KAIROS, quiero pedir:%0A"+carrito.map(x=>"- "+x).join("%0A");
+  window.open("https://wa.me/5355555555?text="+msg,"_blank");
 }
 cargar();
-</script></body></html>
+</script>
+</body>
+</html>
