@@ -1,0 +1,23 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KAIROS Panel</title><style>body{font-family:Arial;padding:15px;background:#eee}input,textarea{width:100%;padding:10px;margin:5px 0;border:1px solid #ccc;border-radius:8px;box-sizing:border-box}button{background:#111;color:#fff;padding:12px;border:0;border-radius:8px;width:100%;font-weight:bold}textarea{height:300px}</style></head>
+<body><h2>🔐 Panel KAIROS</h2><input id="clave" type="password" placeholder="Clave ADMIN_PASS de Render"><button onclick="cargar()">CARGAR CATALOGO</button><p id="st"></p><label>Edita el catálogo en formato JSON (lo mismo que catalogo.json):</label><textarea id="json"></textarea><input id="agotados" placeholder="Agotados separados por coma, ej: NEVERA, TV"><button onclick="guardar()">💾 GUARDAR Y SINCRONIZAR</button>
+<script>
+let CAT={};
+async function cargar(){
+  const r=await fetch('/api/catalogo'); const d=await r.json();
+  CAT={}; d.productos.forEach(p=>{ CAT[p.nombre.toUpperCase()]={nombre:p.nombre,precioUSD:p.precioUSD,almacen:String(p.almacen)} });
+  document.getElementById('json').value=JSON.stringify(CAT,null,2);
+  document.getElementById('agotados').value=d.productos.filter(p=>p.agotado).map(p=>p.nombre).join(', ');
+  document.getElementById('st').innerText='Cargados '+d.productos.length+' productos. Tasa: '+d.tasaUSD;
+}
+async function guardar(){
+  const clave=document.getElementById('clave').value;
+  localStorage.setItem('kairos_pass',clave);
+  try{ CAT=JSON.parse(document.getElementById('json').value); }catch(e){ return alert('JSON con error: '+e.message); }
+  const agotados=document.getElementById('agotados').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const r=await fetch('/api/admin/guardar',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+clave},body:JSON.stringify({catalogo:CAT,agotados})});
+  const d=await r.json();
+  if(d.ok) document.getElementById('st').innerText='✅ Guardado! '+d.total+' productos. Ya está en la página y en GitHub.';
+  else document.getElementById('st').innerText='❌ Error: '+(d.error||'Revisa la clave');
+}
+document.getElementById('clave').value=localStorage.getItem('kairos_pass')||'';
+</script></body></html>
