@@ -1,7 +1,108 @@
 
 const http=require('http');const QRCode=require('qrcode');const fs=require('fs');let ULTIMO_QR='';
 async function backup_to_github(){try{const token=process.env.GITHUB_TOKEN;const repo=process.env.GITHUB_REPO;if(!token||!repo)return;const datos={catalogo:CATALOGO,admins:[...ADMIN_OK],agotados:[...AGOTADOS],gestores:GESTORES,vales:VALES,contador:CONTADOR,comisiones:COMISIONES,info_productos:INFO_PRODUCTOS,fecha:new Date().toISOString()};const content=Buffer.from(JSON.stringify(datos,null,2)).toString('base64');const url=`https://api.github.com/repos/${repo}/contents/kairos-backup.json`;const headers={'Authorization':`token ${token}`,'Accept':'application/vnd.github.v3+json','User-Agent':'kairos-bot'};let sha=null;const getRes=await fetch(url,{headers});if(getRes.ok){const j=await getRes.json();sha=j.sha;}const body={message:`Backup auto ${new Date().toLocaleString('es-CU')}`,content};if(sha)body.sha=sha;await fetch(url,{method:'PUT',headers,body:JSON.stringify(body)});}catch(e){console.log('Error backup:',e.message);}}
-http.createServer(async(req,res)=>{if(req.url==='/qr'){if(!ULTIMO_QR){res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});res.end('<h1>Aun no hay QR, espera 20 seg y recarga</h1><a href="/qr">Recargar</a>');return;}const img=await QRCode.toDataURL(ULTIMO_QR);res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});res.end('<h1>KAIROS - Escanea el QR</h1><img src="'+img+'" style="width:350px">');return;}res.writeHead(200,{'Content-Type':'text/plain; charset=utf-8'});res.end('KAIROS OK - Ve a /qr para vincular');}).listen(process.env.PORT||10000,()=>console.log('Puerto abierto'));
+  // AQUI SE CREA EL SERVIDOR
+// ===== SERVIDOR WEB KAIROS - PAGINA + PANEL + QR =====
+const path = require('path');
+
+function leerBody(req){
+  return new Promise(r=>{
+    let d=''; req.on('data',c=>d+=c); req.on('end',()=>{ try{r(JSON.parse(d||'{}'))}catch(e){r({})} });
+  });
+}
+
+http.createServer(async(req,res)=>{
+  const url = req.url.split('?')[0];
+
+  // --- CORS para que la página hable con el bot ---
+  res.setHeader('Access-Control-Allow-Origin','*');
+  res.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers','Content-Type,Authorization');
+  if(req.method==='OPTIONS'){ res.writeHead(200); res.end(); return; }
+
+  // --- QR que ya tenías ---
+  if(url==='/qr'){
+    if(!ULTIMO_QR){ res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'}); res.end('<h1>Aun no hay QR, espera 20 seg y recarga</h1><a href="/qr">Recargar</a>'); return; }
+    const img = await QRCode.toDataURL(ULTIMO_QR);
+    res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'}); res.end('<h1>KAIROS - Escanea el QR</h1><img src="'+img+'" style="width:350px">'); return;
+  }
+
+  // --- API: CATALOGO PARA LA PAGINA ---
+  if(url==='/api/catalogo' && req.method==='GET'){
+    const lista = Object.values(CATALOGO).map(p=>({
+      nombre: p.nombre,
+      precioUSD: p.precioUSD,
+      almacen: p.almacen,
+      agotado: AGOTADOS.has(p.nombre.toUpperCase()),
+      precioMN: Math.round(p.precioUSD * tasaPorAlmacen(p.almacen)),
+      info: INFO_PRODUCTOS[p.nombre.toUpperCase()]?.texto || ''
+    }));
+    res.writeHead(200,{'Content-Type':'application/json'});
+    res.end(JSON.stringify({ tasaUSD:TASA_USD, tasaA1:TASA_A1, tasaA2:TASA_A2, productos: lista }));
+    return;
+  }
+
+  // --- API: PEDIDO DESDE LA PAGINA -> LE CAE A LOUIS POR WHATSAPP ---
+  if(url==='/api/pedido' && req.method==='POST'){
+    const b = await leerBody(req);
+    // b = { cliente, telefono, productos:[{nombre,cant}], pago:'MN', direccion, tipo:'mensajeria' }
+    CONTADOR++;
+    const prods = b.productos.map(p=>{
+      const orig = CATALOGO[p.nombre.toUpperCase()] || { nombre:p.nombre, precioUSD:0, almacen:'1' };
+      return { nombre: orig.nombre, precioUSD: orig.precioUSD, cant: p.cant, almacen: orig.almacen };
+    });
+    const totalUSD = prods.reduce((s,p)=>s+p.precioUSD*p.cant,0);
+    const totalMN = totalMNProductos(prods);
+    const calc = b.tipo==='mensajeria' ? calcularMensajeria(prods[0].almacen, b.direccion||'', prods) : { costo:0, detalle:'Recogida' };
+    const vale = { numero: CONTADOR, gestor:'WEB', gestorNombre:'PAGINA WEB', cliente:b.cliente, telefonoCliente:b.telefono, metodoPago:b.pago||'MN', productos:prods, tipo:b.tipo||'mensajeria', direccion:b.direccion||'', totalUSD, costoMensajeria:calc.costo, almacen:prods[0].almacen, detalleMensajeria:calc.detalle };
+    VALES[CONTADOR] = vale;
+    guardarTodo();
+    const msg = `🛒 PEDIDO WEB KAIROS-${String(CONTADOR).padStart(3,'0')} (PENDIENTE)\n\nCliente: ${b.cliente}\nTelefono: ${b.telefono}\nPago: ${vale.metodoPago}\nProductos:\n${prods.map(p=>`- ${p.nombre} x${p.cant} = ${p.precioUSD*p.cant} USD`).join('\n')}\nTotal: ${totalUSD} USD / ${totalMN.toLocaleString()} MN\nMensajeria: ${calc.costo} MN (${calc.detalle})\nDireccion: ${b.direccion||DIRECCIONES[vale.almacen]||''}\n\nLouis pon: kairos-${String(CONTADOR).padStart(3,'0')} confirmado`;
+    if(sockGlobal) await sockGlobal.sendMessage(LOUIS_LID, { text: msg });
+    res.writeHead(200,{'Content-Type':'application/json'});
+    res.end(JSON.stringify({ ok:true, vale: CONTADOR, totalUSD, totalMN, mensajeria: calc.costo }));
+    return;
+  }
+
+  // --- API: PANEL ADMIN - ACTUALIZAR CATALOGO (MODO LOCAL) ---
+  if(url==='/api/admin/guardar' && req.method==='POST'){
+    const b = await leerBody(req);
+    // Protege con tu clave: en Render pon ADMIN_PASS=tu-clave
+    if(req.headers['authorization'] !== 'Bearer '+(process.env.ADMIN_PASS||'kairos123')){
+      res.writeHead(401,{'Content-Type':'application/json'}); res.end(JSON.stringify({error:'No autorizado'})); return;
+    }
+    // b = { catalogo: { NOMBRE: {nombre,precioUSD,almacen} }, agotados: [] }
+    CATALOGO = b.catalogo || CATALOGO;
+    AGOTADOS = new Set((b.agotados||[]).map(x=>x.toUpperCase()));
+    if(b.info) INFO_PRODUCTOS = b.info;
+    guardarTodo(); // Esto ya hace backup_to_github()
+    res.writeHead(200,{'Content-Type':'application/json'});
+    res.end(JSON.stringify({ ok:true, total: Object.keys(CATALOGO).length }));
+    return;
+  }
+
+  // --- API: PANEL - VER PEDIDOS / VALES ---
+  if(url==='/api/admin/pedidos' && req.method==='GET'){
+    res.writeHead(200,{'Content-Type':'application/json'});
+    res.end(JSON.stringify({ vales: VALES, contador: CONTADOR }));
+    return;
+  }
+
+  // --- SERVIR PAGINA Y PANEL ---
+  let file = url==='/' ? '/index.html' : url;
+  if(file==='/admin') file='/admin.html';
+  const filePath = path.join(__dirname,'public',file);
+  if(fs.existsSync(filePath)){
+    const ext = file.endsWith('.html')?'text/html': file.endsWith('.js')?'text/javascript':'text/css';
+    res.writeHead(200,{'Content-Type':ext+'; charset=utf-8'});
+    res.end(fs.readFileSync(filePath));
+    return;
+  }
+
+  res.writeHead(200,{'Content-Type':'text/plain; charset=utf-8'});
+  res.end('KAIROS OK - Ve a /qr para vincular | / para tienda | /admin para panel');
+}).listen(process.env.PORT||10000,()=>console.log('Puerto abierto'));
+
 const {default:makeWASocket,useMultiFileAuthState,DisconnectReason}=require('@whiskeysockets/baileys');const pino=require('pino');
 const CANAL_KAIROS = 'https://whatsapp.com/channel/0029Vb6XwiiLo4hiv8RTIi0w';
 const LOUIS_JID='5356947882@s.whatsapp.net';
