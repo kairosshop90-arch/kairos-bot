@@ -3,6 +3,9 @@ const http = require('http');
 const QRCode = require('qrcode');
 let ULTIMO_QR = '';
 
+const fs = require('fs');
+const path = require('path');
+
 http.createServer(async(req,res)=>{
   if(req.url.split('?')[0] === '/qr'){
     if(!ULTIMO_QR){
