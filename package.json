@@ -6,10 +6,8 @@
     "start": "node bot.js"
   },
   "dependencies": {
-    "pdfkit": "^0.15.0",
-    "exceljs": "^4.4.0",
+    "@whiskeysockets/baileys": "^6.17.16",
     "qrcode": "^1.5.4",
-  "@whiskeysockets/baileys": "^6.7.0",
-    "pino": "^9.3.2"
+    "pino": "^3.0.0"
   }
 }
