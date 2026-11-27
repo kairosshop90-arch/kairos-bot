@@ -80,7 +80,7 @@ async function crearExcel(tipo){
 const http = require('http');
 const QRCode = require('qrcode');
 let ULTIMO_QR = '';
-
+let sock;
 
 
 
