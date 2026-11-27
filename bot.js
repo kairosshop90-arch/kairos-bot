@@ -7,69 +7,58 @@ const fs = require('fs');
 const path = require('path');
 
 http.createServer(async(req,res)=>{
-  if(req.url.split('?')[0] === '/qr'){
-    if(!ULTIMO_QR){
+  try{
+    let urlPath = req.url.split('?')[0];
+    if(urlPath === '/qr'){
+      if(!ULTIMO_QR){
+        res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});
+        res.end('<h1>Aun no hay QR, espera 20 seg y recarga</h1>');
+        return;
+      }
+      const img = await QRCode.toDataURL(ULTIMO_QR);
       res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});
-      res.end('<h1>Aun no hay QR, espera 20 seg y recarga</h1>');
+      res.end('<h1>KAIROS - Escanea el QR</h1><img src="'+img+'" style="width:350px">');
       return;
     }
-    const img = await QRCode.toDataURL(ULTIMO_QR);
-    res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});
-    res.end('<h1>KAIROS - Escanea el QR</h1><img src="'+img+'" style="width:350px">');
-    return;
-  }
-
-  // SERVIR PAGINAS DE public/
-  try{
-    let url = req.url.split('?')[0];
-    if(url === '/') url = '/index.html';
-    if(url === '/admin') url = '/admin.html';
-    if(url === '/dashboard') url = '/dashboard.html';
-    if(url.startsWith('/api/')){
+    if(urlPath.startsWith('/api/')){
       res.writeHead(200,{'Content-Type':'application/json'});
-      if(url === '/api/catalogo') return res.end(JSON.stringify(CATALOGO||{}));
-      if(url === '/api/gestores') return res.end(JSON.stringify(GESTORES||{}));
-      if(url === '/api/comisiones') return res.end(JSON.stringify(COMISIONES||{}));
-      if(url === '/api/vales') return res.end(JSON.stringify(VALES||{}));
-            if(url === '/api/ventas'){
+      if(urlPath === '/api/catalogo' || urlPath === '/api/productos'){
+        return res.end(JSON.stringify({catalogo:CATALOGO||{}, productos:CATALOGO||{}, info_productos:INFO_PRODUCTOS||{}, tasas:{base:TASA_BASE||0,a1:TASA_A1||0,a2:TASA_A2||0,usd:TASA_USD||TASA_BASE||0}}));
+      }
+      if(urlPath === '/api/tasas' || urlPath === '/api/tasa' || urlPath === '/api/config' || urlPath === '/api/info'){
+        return res.end(JSON.stringify({tasa:TASA_BASE||0,TASA_BASE:TASA_BASE||0,tasa_a1:TASA_A1||0,TASA_A1:TASA_A1||0,tasa_a2:TASA_A2||0,TASA_A2:TASA_A2||0,tasa_usd:TASA_USD||TASA_BASE||0,TASA_USD:TASA_USD||TASA_BASE||0,tasa_eur:TASA_EUR||0,TASA_EUR:TASA_EUR||0,tasa_mlc:TASA_MLC||840.37,TASA_MLC:TASA_MLC||840.37,usd:TASA_USD||TASA_BASE||0,catalogo:CATALOGO||{},info_productos:INFO_PRODUCTOS||{}}));
+      }
+      if(urlPath === '/api/gestores') return res.end(JSON.stringify(GESTORES||{}));
+      if(urlPath === '/api/comisiones') return res.end(JSON.stringify(COMISIONES||{}));
+      if(urlPath === '/api/vales') return res.end(JSON.stringify(VALES||{}));
+      if(urlPath === '/api/ventas'){
         let v=[]; try{ if(fs.existsSync('ventas.json')) v=JSON.parse(fs.readFileSync('ventas.json')); }catch(e){}
-        if(!Array.isArray(v)) v = v.ventas || [];
-        let totalUSD=0, totalCUP=0;
-        v.forEach(x=>{ totalUSD += Number(x.totalUSD||x.usd||0); totalCUP += Number(x.totalCUP||x.cup||0); });
-        return res.end(JSON.stringify({ventas:v, totalUSD:totalUSD, totalCUP:totalCUP, total:totalUSD, jtotalUSD:totalUSD}));
+        if(!Array.isArray(v)) v=v.ventas||[];
+        let totalUSD=0,totalCUP=0;
+        v.forEach(x=>{ totalUSD+=Number(x.totalUSD||x.usd||0); totalCUP+=Number(x.totalCUP||x.cup||0); });
+        return res.end(JSON.stringify({ventas:v,totalUSD:totalUSD,totalCUP:totalCUP,total:totalUSD,jtotalUSD:totalUSD}));
       }
-      if(url === '/api/resumen' || url === '/api/datos' || url === '/api/stats'){
-        return res.end(JSON.stringify({totalUSD:0, totalCUP:0, ventas:[], catalogo:CATALOGO||{}, gestores:GESTORES||{}, comisiones:COMISIONES||{}}));
+      if(urlPath === '/api/resumen' || urlPath === '/api/datos' || urlPath === '/api/stats'){
+        return res.end(JSON.stringify({totalUSD:0,totalCUP:0,ventas:[],catalogo:CATALOGO||{},gestores:GESTORES||{},comisiones:COMISIONES||{}}));
       }
-           if(url === '/api/tasas' || url === '/api/tasa' || url === '/api/config' || url === '/api/info'){
-        return res.end(JSON.stringify({
-          tasa: TASA_BASE||0, TASA_BASE:TASA_BASE||0,
-          tasa_a1: TASA_A1||0, TASA_A1:TASA_A1||0,
-          tasa_a2: TASA_A2||0, TASA_A2:TASA_A2||0,
-          tasa_usd: TASA_USD||TASA_BASE||0, TASA_USD:TASA_USD||TASA_BASE||0,
-          tasa_eur: TASA_EUR||0, TASA_EUR:TASA_EUR||0,
-          tasa_mlc: TASA_MLC||840.37, TASA_MLC:TASA_MLC||840.37,
-          usd: TASA_USD||TASA_BASE||0, USD: TASA_USD||TASA_BASE||0,
-          almacen1: TASA_A1||0, almacen2: TASA_A2||0,
-          catalogo: CATALOGO||{}, info_productos: INFO_PRODUCTOS||{}
-        }));
-      }
-      if(url === '/api/catalogo' || url === '/api/productos'){
-        return res.end(JSON.stringify({catalogo: CATALOGO||{}, productos: CATALOGO||{}, info_productos: INFO_PRODUCTOS||{}, tasas:{base:TASA_BASE||0,a1:TASA_A1||0,a2:TASA_A2||0,usd:TASA_USD||0}}));
-      }
-    let filePath = path.join(__dirname, 'public', url);
+      return res.end(JSON.stringify({}));
+    }
+    let fileUrl = urlPath;
+    if(fileUrl === '/') fileUrl = '/index.html';
+    if(fileUrl === '/admin') fileUrl = '/admin.html';
+    if(fileUrl === '/dashboard') fileUrl = '/dashboard.html';
+    let filePath = path.join(__dirname,'public',fileUrl);
     if(fs.existsSync(filePath) && !fs.statSync(filePath).isDirectory()){
       let ext = path.extname(filePath);
       let type = ext==='.html'?'text/html; charset=utf-8':ext==='.css'?'text/css':ext==='.js'?'application/javascript':'text/plain';
       res.writeHead(200,{'Content-Type':type});
       return res.end(fs.readFileSync(filePath));
     }
-  }catch(e){ console.log('Error sirviendo:', e.message); }
+  }catch(e){ console.log('Error sirviendo:',e.message); }
   res.writeHead(200,{'Content-Type':'text/plain'});
   res.end('KAIROS BOT ACTIVO - Ve a /qr');
-
-  
 }).listen(process.env.PORT || 10000, ()=> console.log('Puerto abierto en ' + (process.env.PORT || 10000)));
+
 async function backup_to_github(){try{const token=process.env.GITHUB_TOKEN;const repo=process.env.GITHUB_REPO;if(!token||!repo)return;const datos={catalogo:CATALOGO,admins:[...ADMIN_OK],agotados:[...AGOTADOS],gestores:GESTORES,vales:VALES,contador:CONTADOR,comisiones:COMISIONES,info_productos:INFO_PRODUCTOS,fecha:new Date().toISOString()};const content=Buffer.from(JSON.stringify(datos,null,2)).toString('base64');const url=`https://api.github.com/repos/${repo}/contents/kairos-backup.json`;const headers={'Authorization':`token ${token}`,'Accept':'application/vnd.github.v3+json','User-Agent':'kairos-bot'};let sha=null;const getRes=await fetch(url,{headers});if(getRes.ok){const j=await getRes.json();sha=j.sha;}const body={message:`Backup auto ${new Date().toLocaleString('es-CU')}`,content};if(sha)body.sha=sha;await fetch(url,{method:'PUT',headers,body:JSON.stringify(body)});}catch(e){console.log('Error backup:',e.message);}}
   
 
