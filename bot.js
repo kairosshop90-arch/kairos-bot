@@ -303,7 +303,21 @@ if(!from.endsWith('@g.us')&&(text.startsWith('info ')||text.startsWith('buscar '
 if(text==='ver info'){let keys=Object.keys(INFO_PRODUCTOS);if(keys.length===0){await send('Todavia no hay info guardada. Escribe: info + producto');return;}await send('INFO GUARDADA ('+keys.length+'):\n\n'+keys.map(k=>'• '+k).join('\n'));return;}
 if(text.startsWith('borrar info ')){let k=rawText.substring(12).trim().toUpperCase();if(INFO_PRODUCTOS[k]){delete INFO_PRODUCTOS[k];guardarTodo();await send('Borrada info de '+k);}else await send('No tenia info guardada de '+k);return;}
 if(text==='soy admin kairos123'){ADMIN_OK.add(from);guardarTodo();await send('Bienvenido Admin KAIROS.\nComandos: actualizar almacen 1, quitar producto X, agotado X, ver catalogo');return;}
-// 👇 COMANDO MANUAL - Solo tú Louis puedes usarlo
+if(text==='soy admin kairos 123'){ADMIN_OK.add(from);guardarTodo();await send('Bienvenido Admin KAIROS.\nComandos: actualizar almacen 1, quitar producto X, agotado X, ver catalogo');return;}
+if(text==='resumen del dia' || text==='resumen del día' || text==='resumen'){
+  if(!esAdmin){ await send('⛔ No eres admin. Escribe: soy admin kairos 123'); return; }
+  let lista = Object.values(VALES||{});
+  let totalUSD = 0; let totalVales = lista.length;
+  lista.forEach(v=>{ totalUSD += Number(v.totalUSD||0); });
+  let totalCom = 0; let topNombre='Nadie'; let topCant=0;
+  for(let k in COMISIONES){ totalCom += Number(COMISIONES[k].total||0); if((COMISIONES[k].ventas||[]).length > topCant){ topCant=(COMISIONES[k].ventas||[]).length; topNombre=COMISIONES[k].nombre; } }
+  let textoProd = {};
+  lista.forEach(v=>{ (v.productos||[]).forEach(p=>{ let key=p.nombre+' x'+p.cant; textoProd[key]=(textoProd[key]||0)+1; }); });
+  let prods = Object.keys(textoProd).slice(0,5).join('\n- ') || 'Ninguno';
+  await send(`📊 RESUMEN DEL DIA - KAIROS 👑\n\nVales: ${totalVales}\nVendido: ${totalUSD} USD\nComisiones pendientes: ${totalCom} CUP\nTop: ${topNombre} - ${topCant} vales\n\nProductos:\n- ${prods}\n\nCola: ${totalVales}`);
+  return;
+}                                                    
+                                                                                                                                                                                                                                                                                                                                                                                                                            // 👇 COMANDO MANUAL - Solo tú Louis puedes usarlo
 if(esLouis && text.startsWith('!tasa')){
   let mm = rawText.trim().match(/^!tasa\s+([0-9.,]+)(?:\s+([0-9.,]+))?(?:\s+([0-9.,]+))?/i);
   if(mm){
