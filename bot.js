@@ -89,8 +89,12 @@ function buscarProductoEnAlmacen(almacen,txt){let lista=listaPorAlmacen(almacen)
 
 async function start(){
   const{state,saveCreds}=await useMultiFileAuthState('sesion-kairos');
-  const sock=makeWASocket({logger:pino({level:'silent'}),auth:state,printQRInTerminal:false,browser:Browsers.macOS('Desktop')});
+  const { fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
   
+  let version;
+  try{ version = (await fetchLatestBaileysVersion()).version; }catch(e){ version = undefined; }
+  console.log('Usando version Baileys:', version);
+  const sock=makeWASocket({version, logger:pino({level:'silent'}),auth:state,printQRInTerminal:false,browser:Browsers.macOS('Desktop')});
   sock.ev.on('creds.update',saveCreds);
   sock.ev.on('connection.update',(u)=>{
     const { connection, qr, lastDisconnect } = u;
