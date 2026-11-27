@@ -7,7 +7,7 @@ if(process.env.CLEAR_SESSION === '1'){
 
 async function backup_to_github(){try{const token=process.env.GITHUB_TOKEN;const repo=process.env.GITHUB_REPO;if(!token||!repo)return;const datos={catalogo:CATALOGO,admins:[...ADMIN_OK],agotados:[...AGOTADOS],gestores:GESTORES,vales:VALES,contador:CONTADOR,comisiones:COMISIONES,info_productos:INFO_PRODUCTOS,fecha:new Date().toISOString()};const content=Buffer.from(JSON.stringify(datos,null,2)).toString('base64');const url=`https://api.github.com/repos/${repo}/contents/kairos-backup.json`;const headers={'Authorization':`token ${token}`,'Accept':'application/vnd.github.v3+json','User-Agent':'kairos-bot'};let sha=null;const getRes=await fetch(url,{headers});if(getRes.ok){const j=await getRes.json();sha=j.sha;}const body={message:`Backup auto ${new Date().toLocaleString('es-CU')}`,content};if(sha)body.sha=sha;await fetch(url,{method:'PUT',headers,body:JSON.stringify(body)});}catch(e){console.log('Error backup:',e.message);}}
 http.createServer(async(req,res)=>{if(req.url==='/qr'){if(!ULTIMO_QR){res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});res.end('<h1>Aun no hay QR, espera 20 seg y recarga</h1><a href="/qr">Recargar</a>');return;}const img=await QRCode.toDataURL(ULTIMO_QR);res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});res.end('<h1>KAIROS - Escanea el QR</h1><img src="'+img+'" style="width:350px">');return;}res.writeHead(200,{'Content-Type':'text/plain; charset=utf-8'});res.end('KAIROS OK - Ve a /qr para vincular');}).listen(process.env.PORT||10000,()=>console.log('Puerto abierto'));
-const {default:makeWASocket,useMultiFileAuthState,DisconnectReason}=require('@whiskeysockets/baileys');const pino=require('pino');
+const {default:makeWASocket,useMultiFileAuthState,DisconnectReason,Browsers}=require('@whiskeysockets/baileys');const pino=require('pino');
 const CANAL_KAIROS = 'https://whatsapp.com/channel/0029Vb6XwiiLo4hiv8RTIi0w';
 const LOUIS_JID='5356947882@s.whatsapp.net';
 const GRUPO_INFO = '120363414152883390@g.us';
@@ -89,19 +89,28 @@ function buscarProductoEnAlmacen(almacen,txt){let lista=listaPorAlmacen(almacen)
 
 async function start(){
   const{state,saveCreds}=await useMultiFileAuthState('sesion-kairos');
-  const sock=makeWASocket({logger:pino({level:'silent'}),auth:state,printQRInTerminal:false,browser:["Kairos Bot","Chrome","1.0.0"]});
+  const sock=makeWASocket({logger:pino({level:'silent'}),auth:state,printQRInTerminal:false,browser:Browsers.macOS('Desktop')});
   
-      
   sock.ev.on('creds.update',saveCreds);
   sock.ev.on('connection.update',(u)=>{
-    const { connection, qr } = u;
+    const { connection, qr, lastDisconnect } = u;
     console.log('DEBUG CONEXION:', connection, 'hay QR?', !!qr);
     if(qr){
-      lastQR = qr;
+      ULTIMO_QR = qr;
       console.log('QR NUEVO - VE A /qr');
     }
-    if(connection==='open') console.log('CONECTADO KAIROS');
-    if(connection==='close') console.log('Se cerro conexion');
+    if(connection==='open'){ console.log('CONECTADO KAIROS'); ULTIMO_QR=''; }
+    if(connection==='close'){
+      const codigo = lastDisconnect?.error?.output?.statusCode;
+      console.log('Se cerro conexion, codigo:', codigo);
+      if(codigo !== DisconnectReason.loggedOut){
+        console.log('Reintentando en 3 seg...');
+        setTimeout(()=>{ start(); }, 3000);
+      } else {
+        console.log('Sesión cerrada por WhatsApp, borra sesion-kairos y vuelve a escanear');
+        ULTIMO_QR='';
+      }
+    }
   });
   // === AQUI EMPIEZA A ESCUCHAR MENSAJES - ESTO ERA LO QUE FALTABA ===
   sock.ev.on('messages.upsert', async ({messages})=>{
