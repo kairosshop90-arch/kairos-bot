@@ -41,8 +41,22 @@ http.createServer(async(req,res)=>{
       if(url === '/api/resumen' || url === '/api/datos' || url === '/api/stats'){
         return res.end(JSON.stringify({totalUSD:0, totalCUP:0, ventas:[], catalogo:CATALOGO||{}, gestores:GESTORES||{}, comisiones:COMISIONES||{}}));
       }
-      return res.end(JSON.stringify({}));
-    }
+           if(url === '/api/tasas' || url === '/api/tasa' || url === '/api/config' || url === '/api/info'){
+        return res.end(JSON.stringify({
+          tasa: TASA_BASE||0, TASA_BASE:TASA_BASE||0,
+          tasa_a1: TASA_A1||0, TASA_A1:TASA_A1||0,
+          tasa_a2: TASA_A2||0, TASA_A2:TASA_A2||0,
+          tasa_usd: TASA_USD||TASA_BASE||0, TASA_USD:TASA_USD||TASA_BASE||0,
+          tasa_eur: TASA_EUR||0, TASA_EUR:TASA_EUR||0,
+          tasa_mlc: TASA_MLC||840.37, TASA_MLC:TASA_MLC||840.37,
+          usd: TASA_USD||TASA_BASE||0, USD: TASA_USD||TASA_BASE||0,
+          almacen1: TASA_A1||0, almacen2: TASA_A2||0,
+          catalogo: CATALOGO||{}, info_productos: INFO_PRODUCTOS||{}
+        }));
+      }
+      if(url === '/api/catalogo' || url === '/api/productos'){
+        return res.end(JSON.stringify({catalogo: CATALOGO||{}, productos: CATALOGO||{}, info_productos: INFO_PRODUCTOS||{}, tasas:{base:TASA_BASE||0,a1:TASA_A1||0,a2:TASA_A2||0,usd:TASA_USD||0}}));
+      }
     let filePath = path.join(__dirname, 'public', url);
     if(fs.existsSync(filePath) && !fs.statSync(filePath).isDirectory()){
       let ext = path.extname(filePath);
