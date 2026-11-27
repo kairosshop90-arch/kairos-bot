@@ -27,36 +27,30 @@ let FUTURAS_COMPRAS={};
 try{ if(fs.existsSync('futuras.json')) FUTURAS_COMPRAS = JSON.parse(fs.readFileSync('futuras.json')); }catch(e){}
 function guardarFuturas(){ try{ fs.writeFileSync('futuras.json', JSON.stringify(FUTURAS_COMPRAS)); }catch(e){} try{ backup_to_github(); }catch(e){} }
 let TASA_BASE=0;let TASA_A1=0;let TASA_A2=0;let TASA_USD=0;let TASA_EUR=0;
-async function actualizarTasa(){
+async function intentarFuente(url, nombre){
   try{
-    const r = await fetch('https://api.eltoque.com/v1/tasas');
-    const j = await r.json();
-    console.log('Lo que me dio El Toque:', JSON.stringify(j).slice(0, 500));
-    let usd = j?.tasas?.USD || j?.tasas?.usd || j?.USD || j?.usd || j?.tasa || j?.trmi;
-    if(!usd && Array.isArray(j)){
-      let f = j.find(x => (x.moneda||x.currency||'') == 'USD');
-      if(f) usd = f.valor || f.tasa || f.precio;
+    const urlFinal = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now();
+    const r = await fetch(urlFinal, { cache:'no-store', headers:{ 'Cache-Control':'no-cache', 'User-Agent':'KAIROS-Bot' } });
+    if(r.status !== 200) return null;
+    const text = await r.text();
+    // SI ES HTML, NO ES JSON - NO INTENTES PARSEARLO
+    if(text.trim().startsWith('<')){
+      if(nombre === 'CubaDivisa'){
+        let m2 = text.match(/"USD"\s*:\s*([0-9.]+)/) || text.match(/USD.*?([0-9]{3},[0-9]{2})/);
+        if(m2) return { USD: parseFloat(m2[1].replace(',','.')), EUR: null, MLC: null, fuente: 'CubaDivisa-HTML' };
+        return null;
+      }
+      console.log(`⚠️ ${nombre} devolvió HTML, lo salto`);
+      return null;
     }
-    if(!usd && Array.isArray(j?.tasas)){
-      let f = j.tasas.find(x => (x.moneda||x.currency||x.code||'') == 'USD');
-      if(f) usd = f.valor || f.tasa || f.precio || f.rate;
-    }
-    if(usd){
-      TASA_USD = Math.round(Number(usd));
-      TASA_BASE = TASA_USD;
-      console.log('✅ Tasa REAL cogida: ' + TASA_USD);
-    } else {
-      console.log('❌ No encontré USD, me quedo con: ' + TASA_USD);
-    }
-  }catch(e){ console.log('Error tasa:', e.message); }
-  if(!TASA_USD) TASA_USD = 960;
-  TASA_EUR = TASA_USD;
-  TASA_BASE = TASA_USD;
-  TASA_A1 = TASA_BASE + 5;
-  TASA_A2 = TASA_BASE + 10;
-  console.log('Tasa FINAL: USD '+TASA_USD+' / EUR '+TASA_EUR+' / A1 '+TASA_A1+' / A2 '+TASA_A2);
+    const j = JSON.parse(text);
+    let usd = buscarMoneda(j, 'USD');
+    let eur = buscarMoneda(j, 'EUR');
+    let mlc = buscarMoneda(j, 'MLC');
+    if(usd) return { USD: usd, EUR: eur, MLC: mlc, fuente: nombre };
+    return null;
+  }catch(e){ console.log(`❌ ${nombre} falló:`, e.message); return null; }
 }
-actualizarTasa();setInterval(actualizarTasa,15*60*1000);
 
 function tasaPorAlmacen(a){return String(a)==='1'?TASA_A1:TASA_A2;}
 function listaPorAlmacen(a){return Object.values(CATALOGO).filter(p=>String(p.almacen)===String(a));}
