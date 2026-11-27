@@ -305,7 +305,7 @@ function buscarProductoEnAlmacen(almacen,txt){let lista=listaPorAlmacen(almacen)
 
 async function start(){
 console.log('=== START LLAMADO ===');
-try{
+
 const auth = await useMultiFileAuthState('sesion-kairos2');
 const state = auth.state;
 const saveCreds = auth.saveCreds;
