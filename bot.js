@@ -306,11 +306,20 @@ function buscarProductoEnAlmacen(almacen,txt){let lista=listaPorAlmacen(almacen)
 async function start(){
 console.log('=== START LLAMADO ===');
 try{
-const{state,saveCreds}=await useMultiFileAuthState('sesion-kairos2')
+const auth = await useMultiFileAuthState('sesion-kairos2');
+const state = auth.state;
+const saveCreds = auth.saveCreds;
 console.log('=== AUTH OK ===');
 sock = makeWASocket({logger:pino({level:'info'}),auth:state,browser:['KAIROS','Chrome','1.0'],syncFullHistory:false});
-console.log('=== SOCK CREADO, ESPERANDO QR ===');
+console.log('=== SOCK CREADO ===');
+sockGlobal = sock;
+sock.ev.on('creds.update',saveCreds);
+sock.ev.on('connection.update',(u)=>{if(u.qr){ULTIMO_QR=u.qr;console.log('QR NUEVO - VE A /qr');}if(u.connection==='close'){const rec=u.lastDisconnect?.error?.output?.statusCode!==DisconnectReason.loggedOut;if(rec)start();}else if(u.connection==='open'){console.log('KAIROS CONECTADO');ULTIMO_QR='';}});
+sock.ev.on('messages.upsert',async({messages})=>{
+// AQUI TODO TU CODIGO DE MENSAJES QUE YA TIENES, SIN TOCARLO
+});
 }catch(e){console.log('ERROR EN START:',e.message);console.log(e.stack);}
+}
                        
                        sockGlobal = sock; // 👈 ESTA LÍNEA NUEVA, para que avisarmeManual pueda escribirte
                        sock.ev.on('creds.update',saveCreds);sock.ev.on('connection.update',(u)=>{if(u.qr){ULTIMO_QR=u.qr;console.log('QR NUEVO - VE A /qr');}if(u.connection==='close'){const rec=u.lastDisconnect?.error?.output?.statusCode!==DisconnectReason.loggedOut;if(rec)start();}else if(u.connection==='open'){console.log('KAIROS CONECTADO');ULTIMO_QR='';}});sock.ev.on('messages.upsert',async({messages})=>{const m=messages[0];if(!m.message||m.key.fromMe)return;const from=m.key.remoteJid;const rawText=(m.message.conversation||m.message.extendedTextMessage?.text||'').trim();const quienHabla=m.key.participant||m.participant||from;const nombreGestor=m.pushName||from;const text=rawText.toLowerCase().trim();const send=async(t)=>{await sock.sendMessage(from,{text:t});};const esLouis=from===LOUIS_JID||from===LOUIS_LID||quienHabla===LOUIS_JID||quienHabla===LOUIS_LID;const esAdmin=ADMIN_OK.has(from)||ADMIN_OK.has(quienHabla)||esLouis;
