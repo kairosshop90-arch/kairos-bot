@@ -31,9 +31,15 @@ http.createServer(async(req,res)=>{
       if(url === '/api/gestores') return res.end(JSON.stringify(GESTORES||{}));
       if(url === '/api/comisiones') return res.end(JSON.stringify(COMISIONES||{}));
       if(url === '/api/vales') return res.end(JSON.stringify(VALES||{}));
-      if(url === '/api/ventas'){
+            if(url === '/api/ventas'){
         let v=[]; try{ if(fs.existsSync('ventas.json')) v=JSON.parse(fs.readFileSync('ventas.json')); }catch(e){}
-        return res.end(JSON.stringify(v));
+        if(!Array.isArray(v)) v = v.ventas || [];
+        let totalUSD=0, totalCUP=0;
+        v.forEach(x=>{ totalUSD += Number(x.totalUSD||x.usd||0); totalCUP += Number(x.totalCUP||x.cup||0); });
+        return res.end(JSON.stringify({ventas:v, totalUSD:totalUSD, totalCUP:totalCUP, total:totalUSD, jtotalUSD:totalUSD}));
+      }
+      if(url === '/api/resumen' || url === '/api/datos' || url === '/api/stats'){
+        return res.end(JSON.stringify({totalUSD:0, totalCUP:0, ventas:[], catalogo:CATALOGO||{}, gestores:GESTORES||{}, comisiones:COMISIONES||{}}));
       }
       return res.end(JSON.stringify({}));
     }
