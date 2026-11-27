@@ -5,9 +5,12 @@
   "scripts": {
     "start": "node bot.js"
   },
+  "engines": {
+    "node": "20"
+  },
   "dependencies": {
     "@whiskeysockets/baileys": "^6.17.16",
     "qrcode": "^1.5.4",
-    "pino": "^3.0.0"
+    "pino": "^2.4.0"
   }
 }
