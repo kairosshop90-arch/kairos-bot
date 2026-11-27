@@ -300,7 +300,7 @@ function comisionDe(prods){let t=0;for(const p of prods)t+=esGrande(p.nombre)?25
 function totalMNProductos(prods){return prods.reduce((s,p)=>s+p.precioUSD*p.cant*tasaPorAlmacen(p.almacen),0);}
 function buscarProductoEnAlmacen(almacen,txt){let lista=listaPorAlmacen(almacen);txt=txt.trim();if(/^[0-9]+$/.test(txt)){let idx=parseInt(txt)-1;return lista[idx]||null;}let clave=txt.toUpperCase();if(CATALOGO[clave]&&String(CATALOGO[clave].almacen)===String(almacen))return CATALOGO[clave];for(const p of lista){if(p.nombre.toUpperCase().includes(clave)||clave.includes(p.nombre.toUpperCase().split(' ')[0]))return p;}return null;}
 
-async function start(){const{state,saveCreds}=await useMultiFileAuthState('sesion-kairos');
+async function start(){const{state,saveCreds}=await useMultiFileAuthState('sesion-kairos2')
 sock = makeWASocket({logger:pino({level:'silent'}),auth:state});
                        
                        sockGlobal = sock; // 👈 ESTA LÍNEA NUEVA, para que avisarmeManual pueda escribirte
