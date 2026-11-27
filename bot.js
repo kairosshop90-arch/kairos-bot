@@ -1,3 +1,4 @@
+
 const http=require('http');const QRCode=require('qrcode');const fs=require('fs');let ULTIMO_QR='';
 async function backup_to_github(){try{const token=process.env.GITHUB_TOKEN;const repo=process.env.GITHUB_REPO;if(!token||!repo)return;const datos={catalogo:CATALOGO,admins:[...ADMIN_OK],agotados:[...AGOTADOS],gestores:GESTORES,vales:VALES,contador:CONTADOR,comisiones:COMISIONES,info_productos:INFO_PRODUCTOS,fecha:new Date().toISOString()};const content=Buffer.from(JSON.stringify(datos,null,2)).toString('base64');const url=`https://api.github.com/repos/${repo}/contents/kairos-backup.json`;const headers={'Authorization':`token ${token}`,'Accept':'application/vnd.github.v3+json','User-Agent':'kairos-bot'};let sha=null;const getRes=await fetch(url,{headers});if(getRes.ok){const j=await getRes.json();sha=j.sha;}const body={message:`Backup auto ${new Date().toLocaleString('es-CU')}`,content};if(sha)body.sha=sha;await fetch(url,{method:'PUT',headers,body:JSON.stringify(body)});}catch(e){console.log('Error backup:',e.message);}}
 http.createServer(async(req,res)=>{if(req.url==='/qr'){if(!ULTIMO_QR){res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});res.end('<h1>Aun no hay QR, espera 20 seg y recarga</h1><a href="/qr">Recargar</a>');return;}const img=await QRCode.toDataURL(ULTIMO_QR);res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});res.end('<h1>KAIROS - Escanea el QR</h1><img src="'+img+'" style="width:350px">');return;}res.writeHead(200,{'Content-Type':'text/plain; charset=utf-8'});res.end('KAIROS OK - Ve a /qr para vincular');}).listen(process.env.PORT||10000,()=>console.log('Puerto abierto'));
@@ -81,30 +82,8 @@ function comisionDe(prods){let t=0;for(const p of prods)t+=esGrande(p.nombre)?25
 function totalMNProductos(prods){return prods.reduce((s,p)=>s+p.precioUSD*p.cant*tasaPorAlmacen(p.almacen),0);}
 function buscarProductoEnAlmacen(almacen,txt){let lista=listaPorAlmacen(almacen);txt=txt.trim();if(/^[0-9]+$/.test(txt)){let idx=parseInt(txt)-1;return lista[idx]||null;}let clave=txt.toUpperCase();if(CATALOGO[clave]&&String(CATALOGO[clave].almacen)===String(almacen))return CATALOGO[clave];for(const p of lista){if(p.nombre.toUpperCase().includes(clave)||clave.includes(p.nombre.toUpperCase().split(' ')[0]))return p;}return null;}
 
-async function start(){
-  const {state, saveCreds} = await useMultiFileAuthState('sesion-kairos');
-  const sock = makeWASocket({
-    logger: pino({level:'silent'}),
-    auth: state,
-    browser: ['KAIROS','Chrome','1.0.0'],
-    syncFullHistory: false,
-    markOnlineOnConnect: false,
-    generateHighQualityLinkPreview: false
-  });
-  sock.ev.on('creds.update', saveCreds);
-  sock.ev.on('connection.update', async (u)=>{
-    if(u.qr){ ULTIMO_QR = u.qr; console.log('QR NUEVO - VE A /qr'); }
-    if(u.connection === 'close'){
-      const code = u.lastDisconnect?.error?.output?.statusCode;
-      console.log('Conexion cerrada, codigo:', code);
-      const rec = code !== DisconnectReason.loggedOut;
-      if(rec){ console.log('Reintentando en 3 seg...'); setTimeout(()=> start(), 3000); }
-    } else if(u.connection === 'open'){
-      console.log('KAIROS CONECTADO');
-      ULTIMO_QR = '';
-    }
-  });
-  sock.ev.on('messages.upsert',async({messages})=>{const m=messages[0];if(!m.message||m.key.fromMe)return;const from=m.key.remoteJid;const rawText=(m.message.conversation||m.message.extendedTextMessage?.text||'').trim();const quienHabla=m.key.participant||m.participant||from;const nombreGestor=m.pushName||from;const text=rawText.toLowerCase().trim();const send=async(t)=>{await sock.sendMessage(from,{text:t});};const esLouis=from===LOUIS_JID||from===LOUIS_LID||quienHabla===LOUIS_JID||quienHabla===LOUIS_LID;const esAdmin=ADMIN_OK.has(from)||ADMIN_OK.has(quienHabla)||esLouis;
+async function start(){const{state,saveCreds}=await useMultiFileAuthState('sesion-kairos');const sock=makeWASocket({logger:pino({level:'silent'}),auth:state});sock.ev.on('creds.update',saveCreds);sock.ev.on('connection.update',(u)=>{if(u.qr){ULTIMO_QR=u.qr;console.log('QR NUEVO - VE A /qr');}if(u.connection==='close'){const rec=u.lastDisconnect?.error?.output?.statusCode!==DisconnectReason.loggedOut;if(rec)start();}else if(u.connection==='open'){console.log('KAIROS CONECTADO');ULTIMO_QR='';}});sock.ev.on('messages.upsert',async({messages})=>{const m=messages[0];if(!m.message||m.key.fromMe)return;const from=m.key.remoteJid;const rawText=(m.message.conversation||m.message.extendedTextMessage?.text||'').trim();const quienHabla=m.key.participant||m.participant||from;const nombreGestor=m.pushName||from;const text=rawText.toLowerCase().trim();const send=async(t)=>{await sock.sendMessage(from,{text:t});};const esLouis=from===LOUIS_JID||from===LOUIS_LID||quienHabla===LOUIS_JID||quienHabla===LOUIS_LID;const esAdmin=ADMIN_OK.has(from)||ADMIN_OK.has(quienHabla)||esLouis;
+// FUTURA COMPRA - TÚ LE ESCRIBES AL BOT
 if(esAdmin && text.startsWith('futura compra')){
   let info = rawText.replace(/futura compra:/i,'').trim();
   let numMatch = info.match(/5\d{7}|\d{8}/);
@@ -137,17 +116,22 @@ if(from.endsWith('@g.us')){
   const mcGrupo=rawText.match(/kairos[-\s]?(\d+)\s+confirmado/i);
   const esInfoGrupo=from===GRUPO_INFO&&text.startsWith('info ');
   const esInfoMasiva=from===GRUPO_INFO&&text.startsWith('info masiva');
-  if(esInfoGrupo||esInfoMasiva){ /* deja pasar */ }
+  if(esInfoGrupo||esInfoMasiva){ /* deja pasar, se maneja abajo */ }
   else if(esLouisGrupo&&mcGrupo){ /* deja pasar */ }
   else { return; }
 }
+
 if(text==='mi id'){await send('Tu ID es: '+from);return;}
 if(text==='cancelar'||text==='reiniciar'||text==='menu'){delete PEDIDOS[from];delete ACTUALIZANDO[from];PIDIENDO_NOMBRE.delete(from);ELIGIENDO_ALMACEN.delete(from);await send('Listo, borre lo que estabas haciendo. Escribe *catalogo*');return;}
+
+// ===== 1. TU PONES TODA LA INFO - EN GRUPO DE DUDAS =====
+// info masiva + lista completa
 if(from===GRUPO_INFO&&text.startsWith('info masiva')&&esLouis){
   let lineas=rawText.split('\n').slice(1);let guardados=0;
   for(let l of lineas){if(!l.includes('//'))continue;let partes=l.split('//');let prod=partes[0].trim().toUpperCase();let txtInfo=partes[1].trim();if(prod&&txtInfo){INFO_PRODUCTOS[prod]={texto:txtInfo,fuente:'Admin en Dudas',fecha:new Date().toLocaleDateString('es-CU')};guardados++;}}
   guardarTodo();await send(`✅ Cargados ${guardados} productos de una vez. Ya el bot tiene de donde buscar.`);return;
 }
+// info Arrocera Marwa // 1.8L...
 if(from===GRUPO_INFO&&text.startsWith('info ')&&esLouis){
   let parte=rawText.replace(/^info\s+/i,'').trim();let sepIdx=parte.indexOf('//');if(sepIdx===-1)sepIdx=parte.indexOf(':');if(sepIdx===-1){await send('Para guardar pon: info Nombre // caracteristica');return;}
   let prod=parte.substring(0,sepIdx).trim().toUpperCase();let txtInfo=parte.substring(sepIdx+2).trim();
@@ -156,6 +140,9 @@ if(from===GRUPO_INFO&&text.startsWith('info ')&&esLouis){
   if(PENDIENTES_INFO[prod]){let g=PENDIENTES_INFO[prod];await sock.sendMessage(g,{text:`📦 *${prod} - KAIROS*\n\n${txtInfo}`});delete PENDIENTES_INFO[prod];await send('Ya se la mandé al gestor que la pidió.');}
   return;
 }
+
+// ===== 2. GESTOR PREGUNTA AL PRIVADO =====
+// Gestor al privado: info Arrocera Marwa - NUNCA en el grupo
 if(!from.endsWith('@g.us')&&(text.startsWith('info ')||text.startsWith('buscar ')||text.startsWith('informacion '))){
   let prod=rawText.replace(/^(info|buscar|informacion)\s+/i,'').trim();prod=prod.split('//')[0].split(':')[0].trim();
   if(!prod){await send('Escribe: info + producto\nEj: info Arrocera Marwa');return;}
@@ -163,6 +150,7 @@ if(!from.endsWith('@g.us')&&(text.startsWith('info ')||text.startsWith('buscar '
   if(INFO_PRODUCTOS[clave]){await send(`📦 *${clave} - KAIROS*\n\n${INFO_PRODUCTOS[clave].texto}`);return;}
   let encontrada=Object.keys(INFO_PRODUCTOS).find(k=>k.includes(clave)||clave.includes(k));
   if(encontrada){await send(`📦 *${encontrada} - KAIROS*\n\n${INFO_PRODUCTOS[encontrada].texto}`);return;}
+  // Si no la tiene, el BOT pregunta en el grupo de dudas
   PENDIENTES_INFO[clave]=from;
   await send(`No la tengo guardada todavía, ya pregunté en el grupo de dudas de KAIROS. En cuanto el admin la ponga te la mando aquí mismo.`);
   await sock.sendMessage(GRUPO_INFO,{text:`❓ INFO PEDIDA: ${prod}\nLa pidió: ${GESTORES[from]||nombreGestor}\n\nSi tienen la info, manden:\ninfo ${prod} // su info`});
@@ -189,10 +177,8 @@ if(esAdmin&&text==='ver catalogo'){let t='CATALOGO KAIROS\n\n';for(const a of['1
 const mc=rawText.match(/kairos[-\s]?(\d+)\s+confirmado/i);
 if(esLouis&&mc){const nv=parseInt(mc[1],10);const v=VALES[nv];if(!v){await send('No encontre vale '+nv);return;}v.estado='confirmado';const totalMNFinal=totalMNProductos(v.productos);let res='VALE KAIROS-'+String(nv).padStart(3,'0')+' CONFIRMADO\n\nGestor: '+v.gestorNombre+'\nCliente: '+v.cliente+'\nTelefono cliente: '+v.telefonoCliente+'\nPago: '+v.metodoPago+'\nProductos:\n'+v.productos.map(p=>'- '+p.nombre+' x'+p.cant+' = '+(p.cant*p.precioUSD)+' USD (A'+p.almacen+')').join('\n')+'\nTotal: '+v.totalUSD+' '+v.metodoPago+'\nTotal MN ref: '+totalMNFinal.toLocaleString()+' MN\nMensajeria total: '+v.costoMensajeria+' MN';if(v.tipo==='recogida'){res+='\nRecogida en: '+DIRECCIONES[v.almacen];await sock.sendMessage(GRUPO_LOCAL,{text:res});await sock.sendMessage(v.gestor,{text:'Tu vale KAIROS-'+String(nv).padStart(3,'0')+' CONFIRMADO. Recoger en: '+DIRECCIONES[v.almacen]});}else{res+='\nMensajeria a: '+v.direccion;if(v.detalleMensajeria)res+='\n'+v.detalleMensajeria;await sock.sendMessage(GRUPO_MENSAJERIA,{text:res});await sock.sendMessage(v.gestor,{text:'Tu vale KAIROS-'+String(nv).padStart(3,'0')+' CONFIRMADO. Va por mensajeria.'});}await send('Vale '+nv+' enviado al grupo.');return;}
 const me=rawText.match(/vale\s+kairos[-\s]?(\d+)\s+entregado/i);
-if(esLouis&&me){
-  const nv=parseInt(me[1],10);const v=VALES[nv];if(!v){await send('No encontre vale '+nv);return;}const com=comisionDe(v.productos);if(!COMISIONES[v.gestor])COMISIONES[v.gestor]={nombre:v.gestorNombre,total:0,ventas:[]};if(!COMISIONES[v.gestor].ventas.find(x=>x.numero===nv)){COMISIONES[v.gestor].ventas.push({numero:nv,fecha:new Date().toLocaleDateString('es-CU',{day:'2-digit',month:'2-digit'}),productos:v.productos.map(p=>p.nombre+' x'+p.cant).join(', '),comision:com,totalVale:v.totalUSD});COMISIONES[v.gestor].total+=com;COMISIONES[v.gestor].nombre=v.gestorNombre;guardarTodo();}await sock.sendMessage(v.gestor,{text:'VALE KAIROS-'+String(nv).padStart(3,'0')+' ENTREGADO. Tu comision: '+com+' MN\nTotal acumulado: '+COMISIONES[v.gestor].total.toLocaleString()+' MN\nEscribe *ver mis comisiones* para ver el detalle.'});await send('Entrega notificada. Comision: '+com);return;
-}
-if(text.includes('hola')||text.includes('buenas')||text.includes('bendecido')||text.includes('hey')||text.includes('buenos dias')||text.includes('buenas tardes')){delete PEDIDOS[from];ELIGIENDO_ALMACEN.delete(from);await send('Holaa Bienvenido a *KAIROS*\n\nSoy tu asistente, el que te ayuda a crear los vales para la tienda.\n\nYo me encargo de:\nCrear tus vales\nMandarlo a Louis\nCalcularte la mensajeria y el total\n\nPara empezar, escribe:\n*pedido* para hacer un pedido\n*mis vales* para ver tus vales\n*registrarme* si eres nuevo\n\nEmpezamos un pedido?');return;}
+if(esLouis&&me){const nv=parseInt(me[1],10);const v=VALES[nv];if(!v){await send('No encontre vale '+nv);return;}const com=comisionDe(v.productos);if(!COMISIONES[v.gestor])COMISIONES[v.gestor]={nombre:v.gestorNombre,total:0,ventas:[]};if(!COMISIONES[v.gestor].ventas.find(x=>x.numero===nv)){COMISIONES[v.gestor].ventas.push({numero:nv,fecha:new Date().toLocaleDateString('es-CU',{day:'2-digit',month:'2-digit'}),productos:v.productos.map(p=>p.nombre+' x'+p.cant).join(', '),comision:com,totalVale:v.totalUSD});COMISIONES[v.gestor].total+=com;COMISIONES[v.gestor].nombre=v.gestorNombre;guardarTodo();}await sock.sendMessage(v.gestor,{text:'VALE KAIROS-'+String(nv).padStart(3,'0')+' ENTREGADO. Tu comision: '+com+' MN\nTotal acumulado: '+COMISIONES[v.gestor].total.toLocaleString()+' MN\nEscribe *ver mis comisiones* para ver el detalle.'});await send('Entrega notificada. Comision: '+com);return;
+if(text.includes('hola')||text.includes('buenas')||text.includes('bendecido')||text.includes('hey')||text.includes('buenos dias')||text.includes('buenas tardes')){delete PEDIDOS[from];ELIGIENDO_ALMACEN.delete(from);await send('Holaa Bienvenido a *KAIROS*\n\nSoy tu asistente, el que te ayuda a crear los vales para la tienda.\n\nYo me encargo de:\nCrear tus vales\nMandarlo a Louis\nCalcularte la mensajeria y el total\n\nPara empezar, escribe:\n*pedido* para hacer un pedido\n*mis vales* para ver tus vales\n*registrarme* si eres nuevo\n\nEmpezamos un pedido?');return;}}
 if(text==='catálogo'||text==='catalogo'){ELIGIENDO_ALMACEN.add(from);delete PEDIDOS[from];await send('¿De qué almacén quieres?\n\n1. Almacén 1\n2. Almacén 2\n\nEscribe 1 o 2');return;}
 if(ELIGIENDO_ALMACEN.has(from)){if(text==='1'||text==='2'||text.includes('almacen 1')||text.includes('almacen 2')){let a=text.includes('2')?'2':'1';ELIGIENDO_ALMACEN.delete(from);PEDIDOS[from]={gestor:from,gestorNombre:GESTORES[from]||nombreGestor,productos:[],paso:'elegir_producto',actual:0,almacenActual:a};await send(textoCatalogoAlmacen(a)+'\nEscribe el numero o nombre del producto:');return;}else{await send('Escribe 1 para Almacén 1 o 2 para Almacén 2');return;}}
 if(!PEDIDOS[from]||PEDIDOS[from].paso==='elegir_producto'){if(!PEDIDOS[from]){await send('Escribe *catalogo* primero');return;}let ped0=PEDIDOS[from];let prod=buscarProductoEnAlmacen(ped0.almacenActual,rawText);if(prod){if(AGOTADOS.has(prod.nombre.toUpperCase())){await send('Ese producto esta AGOTADO.');return;}ped0.productos.push({nombre:prod.nombre,precioUSD:prod.precioUSD,cant:0,almacen:prod.almacen});ped0.actual=ped0.productos.length-1;ped0.paso='cantidad';let extra='';if(INFO_PRODUCTOS[prod.nombre.toUpperCase()])extra='\n\nINFO GUARDADA:\n'+INFO_PRODUCTOS[prod.nombre.toUpperCase()].texto.slice(0,800);await send(prod.nombre+' - '+prod.precioUSD+' USD (Almacén '+prod.almacen+')'+extra+'\n\nCuantos quieres? Ej: 2');return;}else{await send('No encontre ese producto en Almacén '+ped0.almacenActual+'.\n'+textoCatalogoAlmacen(ped0.almacenActual));return;}}
