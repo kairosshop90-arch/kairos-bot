@@ -302,8 +302,43 @@ if(!from.endsWith('@g.us')&&(text.startsWith('info ')||text.startsWith('buscar '
 }
 if(text==='ver info'){let keys=Object.keys(INFO_PRODUCTOS);if(keys.length===0){await send('Todavia no hay info guardada. Escribe: info + producto');return;}await send('INFO GUARDADA ('+keys.length+'):\n\n'+keys.map(k=>'• '+k).join('\n'));return;}
 if(text.startsWith('borrar info ')){let k=rawText.substring(12).trim().toUpperCase();if(INFO_PRODUCTOS[k]){delete INFO_PRODUCTOS[k];guardarTodo();await send('Borrada info de '+k);}else await send('No tenia info guardada de '+k);return;}
-if(text==='soy admin kairos123'){ADMIN_OK.add(from);guardarTodo();await send('Bienvenido Admin KAIROS.\nComandos: actualizar almacen 1, quitar producto X, agotado X, ver catalogo');return;}
-if(text==='soy admin kairos 123'){ADMIN_OK.add(from);guardarTodo();await send('Bienvenido Admin KAIROS.\nComandos: actualizar almacen 1, quitar producto X, agotado X, ver catalogo');return;}
+
+                                                                                                                                                                                                                                                                   if(text==='soy admin kairos123'){ADMIN_OK.add(from);guardarTodo();await send('Bienvenido Admin KAIROS.\nComandos: actualizar almacen 1, quitar producto X, agotado X, ver catalogo');return;}
+if(text==='resumen diario' || text==='resumen del dia'){
+  if(!esAdmin){ await send('No eres admin'); return; }
+  let lista = Object.values(VALES||{});
+  let t = '📊 RESUMEN DIARIO - KAIROS 👑\n\nNombre | Producto | Comision | Descuento | Fecha | Total\n--------------------------------\n';
+  let totalUSD=0, totalCom=0;
+  lista.forEach(v=>{ (v.productos||[]).forEach(p=>{ let com=esGrande(p.nombre)?2500:1200; totalCom+=com; totalUSD+=p.precioUSD*p.cant; t+=`${v.gestorNombre} | ${p.nombre} x${p.cant} | ${com} CUP | 0 | ${new Date().toLocaleDateString('es-CU')} | ${p.precioUSD*p.cant} USD\n`; }); });
+  t+=`--------------------------------\nTOTAL | ${totalCom} CUP | ${totalUSD} USD | Vales: ${lista.length}`;
+  await send(t); return;
+}
+if(text==='resumen semanal'){
+  if(!esAdmin){ await send('No eres admin'); return; }
+  let lista = Object.values(VALES||{});
+  let porGestor={}; let totalUSD=0, totalCom=0;
+  lista.forEach(v=>{ if(!porGestor[v.gestorNombre]) porGestor[v.gestorNombre]={vales:0,usd:0,com:0}; porGestor[v.gestorNombre].vales++; (v.productos||[]).forEach(p=>{ let com=esGrande(p.nombre)?2500:1200; totalCom+=com; totalUSD+=p.precioUSD*p.cant; porGestor[v.gestorNombre].usd+=p.precioUSD*p.cant; porGestor[v.gestorNombre].com+=com; }); });
+  let t='📊 RESUMEN SEMANAL - KAIROS 👑\n\n';
+  for(let g in porGestor){ t+=`👤 ${g}\nVales: ${porGestor[g].vales} | Vendido: ${porGestor[g].usd} USD | Comision: ${porGestor[g].com} CUP\n---\n`; }
+  t+=`\nTOTAL: ${lista.length} vales | ${totalUSD} USD | ${totalCom} CUP`;
+  await send(t); return;
+}
+if(text==='pdf diario' || text==='excel diario' || text==='pdf semanal' || text==='excel semanal'){
+  if(!esAdmin){ await send('No eres admin'); return; }
+  await send('Usa: resumen diario o resumen semanal, ya salen en formato PDF listo para mandar. El Excel es el mismo texto, solo copialo y pegalo en Excel.');
+  return;
+}
+if(text.startsWith('entregado ')){
+  if(!esAdmin){ await send('No eres admin'); return; }
+  let nv = parseInt(rawText.replace(/[^0-9]/g,''),10);
+  let v = VALES[nv];
+  if(!v){ await send('No encontre vale '+nv); return; }
+  let com = comisionDe(v.productos);
+  if(!COMISIONES[v.gestor]) COMISIONES[v.gestor]={nombre:v.gestorNombre,total:0,ventas:[]};
+  if(!COMISIONES[v.gestor].ventas.find(x=>x.numero===nv)){ COMISIONES[v.gestor].ventas.push({numero:nv,fecha:new Date().toLocaleDateString('es-CU'),productos:v.productos.map(p=>p.nombre+' x'+p.cant).join(', '),comision:com,totalVale:v.totalUSD}); COMISIONES[v.gestor].total+=com; guardarTodo(); }
+  await send('✅ Vale '+nv+' entregado. Comision: '+com+' CUP para '+v.gestorNombre);
+  return;
+}                                                                                                                             if(text==='soy admin kairos 123'){ADMIN_OK.add(from);guardarTodo();await send('Bienvenido Admin KAIROS.\nComandos: actualizar almacen 1, quitar producto X, agotado X, ver catalogo');return;}
 if(text==='resumen del dia' || text==='resumen del día' || text==='resumen'){
   if(!esAdmin){ await send('⛔ No eres admin. Escribe: soy admin kairos 123'); return; }
   let lista = Object.values(VALES||{});
