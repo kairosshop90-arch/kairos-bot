@@ -18,8 +18,37 @@ http.createServer(async(req,res)=>{
     res.end('<h1>KAIROS - Escanea el QR</h1><img src="'+img+'" style="width:350px">');
     return;
   }
+
+  // SERVIR PAGINAS DE public/
+  try{
+    let url = req.url.split('?')[0];
+    if(url === '/') url = '/index.html';
+    if(url === '/admin') url = '/admin.html';
+    if(url === '/dashboard') url = '/dashboard.html';
+    if(url.startsWith('/api/')){
+      res.writeHead(200,{'Content-Type':'application/json'});
+      if(url === '/api/catalogo') return res.end(JSON.stringify(CATALOGO||{}));
+      if(url === '/api/gestores') return res.end(JSON.stringify(GESTORES||{}));
+      if(url === '/api/comisiones') return res.end(JSON.stringify(COMISIONES||{}));
+      if(url === '/api/vales') return res.end(JSON.stringify(VALES||{}));
+      if(url === '/api/ventas'){
+        let v=[]; try{ if(fs.existsSync('ventas.json')) v=JSON.parse(fs.readFileSync('ventas.json')); }catch(e){}
+        return res.end(JSON.stringify(v));
+      }
+      return res.end(JSON.stringify({}));
+    }
+    let filePath = path.join(__dirname, 'public', url);
+    if(fs.existsSync(filePath) && !fs.statSync(filePath).isDirectory()){
+      let ext = path.extname(filePath);
+      let type = ext==='.html'?'text/html; charset=utf-8':ext==='.css'?'text/css':ext==='.js'?'application/javascript':'text/plain';
+      res.writeHead(200,{'Content-Type':type});
+      return res.end(fs.readFileSync(filePath));
+    }
+  }catch(e){ console.log('Error sirviendo:', e.message); }
   res.writeHead(200,{'Content-Type':'text/plain'});
   res.end('KAIROS BOT ACTIVO - Ve a /qr');
+
+  
 }).listen(process.env.PORT || 10000, ()=> console.log('Puerto abierto en ' + (process.env.PORT || 10000)));
 async function backup_to_github(){try{const token=process.env.GITHUB_TOKEN;const repo=process.env.GITHUB_REPO;if(!token||!repo)return;const datos={catalogo:CATALOGO,admins:[...ADMIN_OK],agotados:[...AGOTADOS],gestores:GESTORES,vales:VALES,contador:CONTADOR,comisiones:COMISIONES,info_productos:INFO_PRODUCTOS,fecha:new Date().toISOString()};const content=Buffer.from(JSON.stringify(datos,null,2)).toString('base64');const url=`https://api.github.com/repos/${repo}/contents/kairos-backup.json`;const headers={'Authorization':`token ${token}`,'Accept':'application/vnd.github.v3+json','User-Agent':'kairos-bot'};let sha=null;const getRes=await fetch(url,{headers});if(getRes.ok){const j=await getRes.json();sha=j.sha;}const body={message:`Backup auto ${new Date().toLocaleString('es-CU')}`,content};if(sha)body.sha=sha;await fetch(url,{method:'PUT',headers,body:JSON.stringify(body)});}catch(e){console.log('Error backup:',e.message);}}
   
