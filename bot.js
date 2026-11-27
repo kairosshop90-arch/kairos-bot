@@ -1,3 +1,81 @@
+const PDFDocument = require('pdfkit');
+const ExcelJS = require('exceljs');
+const fs = require('fs');
+const path = require('path');
+
+async function crearPDF(tipo){
+  let lista = Object.values(VALES||{});
+  let porGestor={}; let totalUSD=0, totalCom=0;
+  lista.forEach(v=>{
+    if(!porGestor[v.gestorNombre]) porGestor[v.gestorNombre]={lineas:[], com:0, usd:0, vales:0};
+    porGestor[v.gestorNombre].vales++;
+    (v.productos||[]).forEach(p=>{
+      let com = esGrande(p.nombre)?2500:1200;
+      porGestor[v.gestorNombre].com+=com; porGestor[v.gestorNombre].usd+=p.precioUSD*p.cant;
+      totalCom+=com; totalUSD+=p.precioUSD*p.cant;
+      porGestor[v.gestorNombre].lineas.push({prod: p.nombre+' x'+p.cant, com, desc: 0, fecha: new Date().toLocaleDateString('es-CU'), total: p.precioUSD*p.cant});
+    });
+  });
+  const filePath = `/tmp/${tipo}-kairos.pdf`;
+  const doc = new PDFDocument({margin:40});
+  doc.pipe(fs.createWriteStream(filePath));
+  doc.fontSize(20).text(tipo==='diario'?'RESUMEN DIARIO - KAIROS':'RESUMEN SEMANAL - KAIROS', {align:'center'});
+  doc.fontSize(11).text(new Date().toLocaleDateString('es-CU'), {align:'center'});
+  doc.moveDown();
+  doc.fontSize(11).text('Gestor que vendio | Producto | Comision | Descuento | Fecha | Total');
+  doc.text('--------------------------------------------------------------------------------');
+  for(let g in porGestor){
+    doc.fontSize(13).text(`GESTOR QUE VENDIO: ${g}`);
+    porGestor[g].lineas.forEach(l=>{
+      doc.fontSize(11).text(`${g} | ${l.prod} | ${l.com} CUP | ${l.desc} | ${l.fecha} | ${l.total} USD`);
+    });
+    doc.fontSize(11).text(`Subtotal ${g}: Comision ${porGestor[g].com} CUP | Vendido ${porGestor[g].usd} USD | Vales: ${porGestor[g].vales}`);
+    doc.moveDown();
+  }
+  doc.fontSize(14).text('================================');
+  doc.fontSize(14).text(`TOTAL GENERAL - Comisiones a pagar: ${totalCom} CUP`);
+  doc.fontSize(14).text(`Total vendido: ${totalUSD} USD | Vales: ${lista.length}`);
+  doc.end();
+  await new Promise(r=>setTimeout(r,800));
+  return {filePath, totalCom, totalUSD};
+}
+
+async function crearExcel(tipo){
+  let lista = Object.values(VALES||{});
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet(tipo==='diario'?'Resumen Diario':'Resumen Semanal');
+  ws.columns = [
+    {header:'Gestor que vendio', key:'gestor', width:25},
+    {header:'Producto', key:'prod', width:25},
+    {header:'Comision CUP', key:'com', width:15},
+    {header:'Descuento', key:'desc', width:12},
+    {header:'Fecha', key:'fecha', width:15},
+    {header:'Total USD', key:'total', width:15},
+  ];
+  let totalUSD=0, totalCom=0;
+  lista.forEach(v=>{
+    (v.productos||[]).forEach(p=>{
+      let com = esGrande(p.nombre)?2500:1200;
+      totalCom+=com; totalUSD+=p.precioUSD*p.cant;
+      ws.addRow({gestor: v.gestorNombre, prod: p.nombre+' x'+p.cant, com, desc: 0, fecha: new Date().toLocaleDateString('es-CU'), total: p.precioUSD*p.cant});
+    });
+  });
+  ws.addRow({});
+  ws.addRow({gestor:'TOTAL GENERAL', prod:'', com: totalCom, desc:'', fecha:'', total: totalUSD});
+  // Subtotales por gestor
+  ws.addRow({});
+  ws.addRow({gestor:'RESUMEN POR GESTOR', prod:'', com:'', desc:'', fecha:'', total:''});
+  let porGestor={};
+  lista.forEach(v=>{
+    if(!porGestor[v.gestorNombre]) porGestor[v.gestorNombre]={com:0,usd:0};
+    (v.productos||[]).forEach(p=>{ let com=esGrande(p.nombre)?2500:1200; porGestor[v.gestorNombre].com+=com; porGestor[v.gestorNombre].usd+=p.precioUSD*p.cant; });
+  });
+  for(let g in porGestor){ ws.addRow({gestor:g, prod:'Subtotal', com:porGestor[g].com, desc:'', fecha:'', total:porGestor[g].usd}); }
+  const filePath = `/tmp/${tipo}-kairos.xlsx`;
+  await wb.xlsx.writeFile(filePath);
+  return {filePath, totalCom, totalUSD};
+}
+
 
 const http = require('http');
 const QRCode = require('qrcode');
