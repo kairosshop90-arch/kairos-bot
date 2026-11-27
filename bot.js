@@ -33,11 +33,16 @@ try{ if(fs.existsSync('futuras.json')) FUTURAS_COMPRAS = JSON.parse(fs.readFileS
 function guardarFuturas(){ try{ fs.writeFileSync('futuras.json', JSON.stringify(FUTURAS_COMPRAS)); }catch(e){} try{ backup_to_github(); }catch(e){} }
 let TASA_BASE=0;let TASA_A1=0;let TASA_A2=0;let TASA_USD=0;let TASA_EUR=0;
 async function actualizarTasa(){
+  let usd = null;
+
+  // 1. ELTOQUE
   try{
-    const r = await fetch('https://api.eltoque.com/v1/tasas');
-    const j = await r.json();
+    const r = await fetch('https://api.eltoque.com/v1/tasas', {headers:{'User-Agent':'Mozilla/5.0'}});
+    const txt = await r.text();
+    if(txt.startsWith('<')) throw new Error('ElToque devolvio HTML');
+    const j = JSON.parse(txt);
     console.log('Lo que me dio El Toque:', JSON.stringify(j).slice(0, 500));
-    let usd = j?.tasas?.USD || j?.tasas?.usd || j?.USD || j?.usd || j?.tasa || j?.trmi;
+    usd = j?.tasas?.USD || j?.tasas?.usd || j?.USD || j?.usd || j?.tasa || j?.trmi;
     if(!usd && Array.isArray(j)){
       let f = j.find(x => (x.moneda||x.currency||'') == 'USD');
       if(f) usd = f.valor || f.tasa || f.precio;
@@ -46,14 +51,40 @@ async function actualizarTasa(){
       let f = j.tasas.find(x => (x.moneda||x.currency||x.code||'') == 'USD');
       if(f) usd = f.valor || f.tasa || f.precio || f.rate;
     }
-    if(usd){
-      TASA_USD = Math.round(Number(usd));
-      TASA_BASE = TASA_USD;
-      console.log('✅ Tasa REAL cogida: ' + TASA_USD);
-    } else {
-      console.log('❌ No encontré USD, me quedo con: ' + TASA_USD);
-    }
-  }catch(e){ console.log('Error tasa:', e.message); }
+    if(usd) console.log('✅ Tasa de ElToque: ' + usd);
+    else console.log('❌ ElToque sin USD, voy a CubaDivisa');
+  }catch(e){ console.log('ElToque fallo:', e.message, '-> voy a CubaDivisa'); }
+
+  // 2. CUBADIVISA - solo si ElToque fallo
+  if(!usd){
+    try{
+      const r2 = await fetch('https://cubadivisa.com/api/rates', {headers:{'User-Agent':'Mozilla/5.0'}});
+      const txt2 = await r2.text();
+      if(txt2.startsWith('<')) throw new Error('CubaDivisa devolvio HTML');
+      const j2 = JSON.parse(txt2);
+      console.log('Lo que me dio CubaDivisa:', JSON.stringify(j2).slice(0, 500));
+      usd = j2?.USD || j2?.usd || j2?.rates?.USD || j2?.rates?.usd || j2?.tasa || j2?.data?.USD;
+      if(!usd && Array.isArray(j2)){
+        let f = j2.find(x => (x.moneda||x.currency||x.code||'') == 'USD');
+        if(f) usd = f.valor || f.tasa || f.precio || f.rate;
+      }
+      if(!usd && Array.isArray(j2?.tasas)){
+        let f = j2.tasas.find(x => (x.moneda||x.currency||x.code||'') == 'USD');
+        if(f) usd = f.valor || f.tasa || f.precio || f.rate;
+      }
+      if(usd) console.log('✅ Tasa de CubaDivisa: ' + usd);
+    }catch(e2){ console.log('CubaDivisa fallo:', e2.message); }
+  }
+
+  // 3. APLICAR
+  if(usd){
+    TASA_USD = Math.round(Number(usd));
+    TASA_BASE = TASA_USD;
+    console.log('✅ Tasa REAL cogida: ' + TASA_USD);
+  } else {
+    console.log('❌ Ninguna sirvio, me quedo con: ' + TASA_USD);
+  }
+
   if(!TASA_USD) TASA_USD = 960;
   TASA_EUR = TASA_USD;
   TASA_BASE = TASA_USD;
@@ -61,17 +92,7 @@ async function actualizarTasa(){
   TASA_A2 = TASA_BASE + 10;
   console.log('Tasa FINAL: USD '+TASA_USD+' / EUR '+TASA_EUR+' / A1 '+TASA_A1+' / A2 '+TASA_A2);
 }
-actualizarTasa();setInterval(actualizarTasa,15*60*1000);
-
-function tasaPorAlmacen(a){return String(a)==='1'?TASA_A1:TASA_A2;}
-function listaPorAlmacen(a){return Object.values(CATALOGO).filter(p=>String(p.almacen)===String(a));}
-function textoCatalogoAlmacen(a){
-  let lista=listaPorAlmacen(a);
-  let t='--- ALMACEN '+a+' ---\n';
-  if(lista.length===0) t+='(Vacio)\n';
-  else lista.forEach((p,i)=>{
-    t+=(i+1)+'. '+p.nombre+' - '+p.precioUSD+' USD'+(AGOTADOS.has(p.nombre.toUpperCase())?' AGOTADO':'')+'\n';
-  });
+actualizarTasa();setInterval(actualizarTasa,10*60*1000);
   t+='\n📢 ÚNETE A NUESTRO CANAL PARA ESTAR ACTUALIZADO DE NUESTROS ALMACENES:\n👉 '+CANAL_KAIROS;
   return t;
 }
