@@ -27,6 +27,45 @@ let FUTURAS_COMPRAS={};
 try{ if(fs.existsSync('futuras.json')) FUTURAS_COMPRAS = JSON.parse(fs.readFileSync('futuras.json')); }catch(e){}
 function guardarFuturas(){ try{ fs.writeFileSync('futuras.json', JSON.stringify(FUTURAS_COMPRAS)); }catch(e){} try{ backup_to_github(); }catch(e){} }
 let TASA_BASE=0;let TASA_A1=0;let TASA_A2=0;let TASA_USD=0;let TASA_EUR=0;
+function buscarMoneda(j, codigo){
+  try{
+    if(!j) return null;
+    if(Array.isArray(j)){
+      for(let x of j){ let v=buscarMoneda(x,codigo); if(v) return v; }
+      return null;
+    }
+    if(typeof j==='object'){
+      for(let k in j){
+        if(String(k).toUpperCase()===codigo){
+          let v=j[k];
+          if(typeof v==='object' && v!==null) return v.venta||v.value||v.price||v.tasa||null;
+          let n=parseFloat(String(v).replace(',','.')); if(n) return n;
+        }
+        let v=buscarMoneda(j[k],codigo); if(v) return v;
+      }
+    }
+    return null;
+  }catch(e){ return null; }
+}
+async function actualizarTasa(){
+  try{
+    let r=null;
+    r=await intentarFuente('https://api.eltoque.com/v1/trmi','ElToque');
+    if(!r) r=await intentarFuente('https://cubadivisa.com/api','CubaDivisa');
+    if(!r) r=await intentarFuente('https://api.cubadivisa.com','CubaDivisa');
+    if(r && r.USD){
+      TASA_BASE=Math.round(r.USD); TASA_USD=TASA_BASE; TASA_EUR=TASA_BASE;
+      TASA_A1=TASA_BASE+5; TASA_A2=TASA_BASE+10;
+      console.log('Tasa FINAL: USD '+TASA_BASE+' A1 '+TASA_A1+' A2 '+TASA_A2+' fuente '+r.fuente);
+    } else {
+      if(!TASA_BASE){ TASA_BASE=980; TASA_A1=985; TASA_A2=990; }
+      console.log('Tasa fallback: '+TASA_BASE);
+    }
+  }catch(e){ console.log('Error tasa:',e.message); if(!TASA_BASE){ TASA_BASE=980; TASA_A1=985; TASA_A2=990; } }
+}
+// Arrancar tasa en fondo, SIN bloquear el QR
+actualizarTasa();
+setInterval(actualizarTasa, 10*60*1000);
 async function intentarFuente(url, nombre){
   try{
     const urlFinal = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now();
