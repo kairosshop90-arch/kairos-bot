@@ -401,11 +401,32 @@ if(text==='resumen semanal'){
   t+=`\nTOTAL: ${lista.length} vales | ${totalUSD} USD | ${totalCom} CUP`;
   await send(t); return;
 }
-if(text==='pdf diario' || text==='excel diario' || text==='pdf semanal' || text==='excel semanal'){
+if(text==='pdf diario'){
   if(!esAdmin){ await send('No eres admin'); return; }
-  await send('Usa: resumen diario o resumen semanal, ya salen en formato PDF listo para mandar. El Excel es el mismo texto, solo copialo y pegalo en Excel.');
+  let r = await crearPDF('diario');
+  await send('📄 PDF Diario listo. Total comisiones: '+r.totalCom+' CUP. Te lo mando como fichero...');
   return;
 }
+if(text==='pdf semanal'){
+  if(!esAdmin){ await send('No eres admin'); return; }
+  let r = await crearPDF('semanal');
+  await send('📄 PDF Semanal listo. Total comisiones: '+r.totalCom+' CUP. Te lo mando como fichero...');
+  return;
+}
+if(text==='excel diario'){
+  if(!esAdmin){ await send('No eres admin'); return; }
+  let r = await crearExcel('diario');
+  await send('📊 Excel Diario listo. Total comisiones: '+r.totalCom+' CUP. Te lo mando como fichero...');
+  return;
+}
+if(text==='excel semanal'){
+  if(!esAdmin){ await send('No eres admin'); return; }
+  let r = await crearExcel('semanal');
+  await send('📊 Excel Semanal listo. Total comisiones: '+r.totalCom+' CUP. Te lo mando como fichero...');
+  return;
+}
+                                                                                                                                                                                                                                                                                                                                                                                                                            
+                                                                                                                                                                                                                                                                                                                                                                                                                            
 if(text.startsWith('entregado ')){
   if(!esAdmin){ await send('No eres admin'); return; }
   let nv = parseInt(rawText.replace(/[^0-9]/g,''),10);
