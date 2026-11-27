@@ -1,6 +1,6 @@
 const http=require('http');const QRCode=require('qrcode');const fs=require('fs');let ULTIMO_QR='';
 // Si la sesión está corrupta, la borra sola al arrancar
-const fs = require('fs');
+
 if(process.env.CLEAR_SESSION === '1'){
   try{ fs.rmSync('./sesion-kairos',{recursive:true,force:true}); console.log('Sesión borrada'); }catch(e){}
 }
