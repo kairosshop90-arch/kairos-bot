@@ -2,6 +2,9 @@
   "name": "kairos-bot",
   "version": "1.0.0",
   "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
   "dependencies": {
     "pdfkit": "^0.15.0",
     "exceljs": "^4.4.0"
