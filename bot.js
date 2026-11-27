@@ -95,6 +95,7 @@ async function start(){
   sock.ev.on('creds.update',saveCreds);
   sock.ev.on('connection.update',(u)=>{
     const { connection, qr } = u;
+    console.log('DEBUG CONEXION:', connection, 'hay QR?', !!qr);
     if(qr){
       lastQR = qr;
       console.log('QR NUEVO - VE A /qr');
