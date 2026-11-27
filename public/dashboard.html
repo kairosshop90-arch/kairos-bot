@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KAIROS - Panel de Control</title>
+<style>
+  *{box-sizing:border-box} body{font-family:system-ui,Arial;background:#0f172a;color:#e2e8f0;margin:0;padding:14px}
+  .header{background:linear-gradient(135deg,#22c55e,#0ea5e9);color:#000;border-radius:16px;padding:18px;margin-bottom:14px}
+  .header h1{margin:0;font-size:26px} .header p{margin:4px 0 0;opacity:.8}
+  .card{background:#1e293b;border:1px solid #334155;border-radius:14px;padding:14px;margin-bottom:12px}
+  h2{font-size:15px;margin:0 0 10px;color:#38bdf8;text-transform:uppercase;letter-spacing:.5px}
+  input{width:100%;padding:11px;border-radius:10px;border:1px solid #334155;background:#0f172a;color:white;margin:6px 0}
+  button{width:100%;padding:12px;border:0;border-radius:10px;background:#22c55e;color:#000;font-weight:800;font-size:15px;cursor:pointer}
+  button.sec{background:#38bdf8} button.ghost{background:#334155;color:white}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .kpi{background:#0f172a;border:1px solid #334155;border-radius:12px;padding:12px;text-align:center}
+  .kpi b{font-size:24px;display:block} .kpi span{font-size:12px;color:#94a3b8}
+  .kpi.green b{color:#22c55e} .kpi.blue b{color:#38bdf8} .kpi.yellow b{color:#facc15}
+  .row{display:flex;justify-content:space-between;align-items:center;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:10px;margin:6px 0}
+  .row b{font-size:14px} .row span{font-size:13px;color:#94a3b8;text-align:right}
+  .badge{font-size:11px;padding:4px 8px;border-radius:99px;background:#334155}
+  .badge.ok{background:#14532d;color:#bbf7d0} .badge.pend{background:#713f12;color:#fde68a} .badge.ent{background:#1e40af;color:#bfdbfe}
+  .tabs{display:flex;gap:8px;margin:12px 0} .tabs button{flex:1;background:#334155;color:white;padding:10px;font-size:13px} .tabs button.on{background:#22c55e;color:#000}
+  .bar{height:10px;background:#334155;border-radius:99px;overflow:hidden;margin:6px 0} .bar i{display:block;height:100%;background:#22c55e}
+  small{color:#94a3b8} .hidden{display:none} #app{display:none}
+  .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+</style>
+</head>
+<body>
+<div id="login" class="card">
+  <div class="header" style="margin:-14px -14px 14px"><h1>🔥 KAIROS</h1><p>Panel de Control - Louis</p></div>
+  <label>URL de tu bot en Render</label>
+  <input id="urlBot" placeholder="https://kairos-bot.onrender.com" value="">
+  <label>Contraseña Admin</label>
+  <input id="pass" type="password" placeholder="kairos123">
+  <button onclick="conectar()">🔌 Conectar al Negocio</button>
+  <p><small>Se guarda en tu teléfono, no tienes que ponerlo cada vez.</small></p>
+  <p id="msg" style="color:#f87171"></p>
+</div>
+<div id="app">
+  <div class="topbar"><div><h1 style="margin:0;font-size:22px">🔥 KAIROS</h1><small id="fechaHoy"></small></div><button class="ghost" style="width:auto;padding:8px 14px" onclick="cargarTodo()">🔄 Actualizar</button></div>
+  <div class="card"><h2>📊 Resumen General</h2><div class="grid"><div class="kpi green"><b id="kTotalUSD">$0</b><span>Total Vendido USD</span></div><div class="kpi blue"><b id="kVales">0</b><span>Vales Creados</span></div><div class="kpi yellow"><b id="kMN">0</b><span>Total MN ref.</span></div><div class="kpi"><b id="kMens">0</b><span>Mensajería MN</span></div></div>
+  <div style="margin-top:10px"><div style="display:flex;justify-content:space-between"><small>USD</small><b id="pagoUSD"></b></div><div class="bar"><i id="barUSD" style="width:0%"></i></div><div style="display:flex;justify-content:space-between"><small>EUR</small><b id="pagoEUR"></b></div><div class="bar"><i id="barEUR" style="width:0%;background:#38bdf8"></i></div><div style="display:flex;justify-content:space-between"><small>MN</small><b id="pagoMN"></b></div><div class="bar"><i id="barMN" style="width:0%;background:#facc15"></i></div></div></div>
+  <div class="tabs"><button id="t1" class="on" onclick="tab('ventas')">🧾 Ventas</button><button id="t2" onclick="tab('gestores')">👥 Gestores</button><button id="t3" onclick="tab('catalogo')">📦 Catálogo</button><button id="t4" onclick="tab('comisiones')">💰 Comisiones</button></div>
+  <div id="secVentas"><div class="card"><h2>📅 Últimos 7 días</h2><div id="dias"></div></div><div class="card"><h2>🏬 Por Almacén</h2><div id="almacenes"></div></div><div class="card"><h2>🧾 Últimos 20 vales</h2><div id="ultimos"></div></div></div>
+  <div id="secGestores" class="hidden"><div class="card"><h2>👥 Ranking Gestores</h2><div id="listaGestores"></div></div></div>
+  <div id="secCatalogo" class="hidden"><div class="card"><h2>📦 Catálogo - <span id="totalCat"></span></h2><input id="buscar" placeholder="Buscar producto..." oninput="pintarCatalogo()"><div id="listaCat"></div></div></div>
+  <div id="secComisiones" class="hidden"><div class="card"><h2>💰 Comisiones por Pagar</h2><div id="listaCom"></div><div style="background:#0f172a;border:1px solid #334155;border-radius:10px;padding:12px;text-align:center;margin-top:10px"><b style="font-size:22px;color:#facc15" id="totalCom">$0</b><br><small>Total a pagar a gestores</small></div></div></div>
+  <div class="card" style="text-align:center"><small>KAIROS • Panel Local • Louis • <span id="ultAct"></span></small><br><button class="ghost" style="margin-top:8px" onclick="salir()">Cerrar sesión</button></div>
+</div>
+<script>
+let BASE='', PASS='', DATOS_VENTAS=null, DATOS_CAT=null;
+document.getElementById('fechaHoy').innerText = new Date().toLocaleDateString('es-CU',{weekday:'long', day:'numeric', month:'long', year:'numeric'});
+const savedUrl = localStorage.getItem('kairos_url');
+const savedPass = localStorage.getItem('kairos_pass');
+if(savedUrl) document.getElementById('urlBot').value = savedUrl;
+if(savedPass) document.getElementById('pass').value = savedPass;
+function tab(n){ ['ventas','gestores','catalogo','comisiones'].forEach(x=>{ document.getElementById('sec'+x.charAt(0).toUpperCase()+x.slice(1)).classList.toggle('hidden', x!==n); }); ['t1','t2','t3','t4'].forEach((id,i)=>{ document.getElementById(id).className = (['ventas','gestores','catalogo','comisiones'][i]===n)?'on':''; }); }
+async function conectar(){ let u = document.getElementById('urlBot').value.trim().replace(/\/$/,''); PASS = document.getElementById('pass').value.trim(); if(!PASS){ document.getElementById('msg').innerText='Pon la contraseña'; return; } BASE = u || ''; localStorage.setItem('kairos_url', u); localStorage.setItem('kairos_pass', PASS); document.getElementById('msg').innerText='Conectando...'; await cargarTodo(); document.getElementById('login').style.display='none'; document.getElementById('app').style.display='block'; }
+async function cargarTodo(){ try{ const rV = await fetch(BASE+'/api/ventas',{headers:{'Authorization':'Bearer '+PASS}}); DATOS_VENTAS = await rV.json(); if(DATOS_VENTAS.error) throw new Error('Contraseña incorrecta'); const rC = await fetch(BASE+'/api/catalogo'); DATOS_CAT = await rC.json(); pintarResumen(); pintarVentas(); pintarGestores(); pintarCatalogo(); pintarComisiones(); document.getElementById('ultAct').innerText = 'Actualizado: '+new Date().toLocaleTimeString('es-CU'); document.getElementById('login').style.display='none'; document.getElementById('app').style.display='block'; }catch(e){ document.getElementById('msg').innerText='Error: '+e.message; alert('Error: '+e.message); } }
+function pintarResumen(){ const j = DATOS_VENTAS; document.getElementById('kTotalUSD').innerText = '$'+j.totalUSD.toLocaleString(); document.getElementById('kVales').innerText = j.totalVales; document.getElementById('kMN').innerText = j.totalMN.toLocaleString(); document.getElementById('kMens').innerText = j.totalMensajeria.toLocaleString(); const totalPago = (j.porPago.USD||0)+(j.porPago.EUR||0)+(j.porPago.MN||0) || 1; document.getElementById('pagoUSD').innerText = j.porPago.USD.toLocaleString()+' USD'; document.getElementById('pagoEUR').innerText = j.porPago.EUR.toLocaleString()+' EUR'; document.getElementById('pagoMN').innerText = j.porPago.MN.toLocaleString()+' MN'; document.getElementById('barUSD').style.width = (j.porPago.USD/totalPago*100)+'%'; document.getElementById('barEUR').style.width = (j.porPago.EUR/totalPago*100)+'%'; document.getElementById('barMN').style.width = (j.porPago.MN/totalPago*100)+'%'; }
+function pintarVentas(){ const j = DATOS_VENTAS; const dias = Object.keys(j.porDia).sort().slice(-7).reverse(); document.getElementById('dias').innerHTML = dias.length ? dias.map(d=>`<div class="row"><b>${d}</b><span>${j.porDia[d].ventas} vales • $${j.porDia[d].usd.toLocaleString()}</span></div>`).join('') : '<small>Sin ventas todavía</small>'; document.getElementById('almacenes').innerHTML = Object.keys(j.porAlmacen).map(k=>`<div class="row"><b>Almacén ${k}</b><span>$${j.porAlmacen[k].toLocaleString()} USD</span></div>`).join(''); document.getElementById('ultimos').innerHTML = j.ultimos.length ? j.ultimos.map(v=>{ let cls = v.estado==='entregado'?'ent': v.estado==='confirmado'?'ok':'pend'; let txt = v.estado==='entregado'?'ENTREGADO': v.estado==='confirmado'?'CONFIRMADO':'PENDIENTE'; return `<div class="row"><div><b>KAIROS-${String(v.numero).padStart(3,'0')}</b><br><small>${v.gestor} • ${v.cliente}<br>${v.productos}</small></div><div style="text-align:right"><span class="badge ${cls}">${txt}</span><br><span>$${v.total} ${v.pago} • A${v.almacen}</span></div></div>`; }).join('') : '<small>Sin vales todavía.</small>'; }
+function pintarGestores(){ const j = DATOS_VENTAS; const gs = Object.keys(j.porGestor).sort((a,b)=>j.porGestor[b].usd - j.porGestor[a].usd); document.getElementById('listaGestores').innerHTML = gs.length ? gs.map((g,i)=>`<div class="row"><b>${i+1}. ${g}</b><span>${j.porGestor[g].ventas} vales • $${j.porGestor[g].usd.toLocaleString()}<br>Com: ${j.porGestor[g].comisiones.toLocaleString()} MN</span></div>`).join('') : '<small>Sin gestores con ventas</small>'; }
+function pintarCatalogo(){ if(!DATOS_CAT) return; const q = (document.getElementById('buscar').value||'').toUpperCase(); const lista = DATOS_CAT.productos.filter(p=>!q || p.nombre.toUpperCase().includes(q)); document.getElementById('totalCat').innerText = DATOS_CAT.productos.length+' productos • Tasa USD '+DATOS_CAT.tasaUSD; document.getElementById('listaCat').innerHTML = lista.map(p=>`<div class="row"><b>${p.nombre}</b><span>${p.precioUSD} USD • ${p.precioMN.toLocaleString()} MN • A${p.almacen} ${p.agotado?'• 🔴 AGOTADO':''}</span></div>`).join('') || '<small>No hay productos</small>'; }
+function pintarComisiones(){ const com = DATOS_VENTAS.comisiones || {}; const keys = Object.keys(com).filter(k=>com[k].total>0).sort((a,b)=>com[b].total - com[a].total); let total = keys.reduce((s,k)=>s+com[k].total,0); document.getElementById('totalCom').innerText = total.toLocaleString()+' MN'; document.getElementById('listaCom').innerHTML = keys.length ? keys.map(k=>`<div class="row"><b>${com[k].nombre}</b><span>${com[k].total.toLocaleString()} MN<br><small>${com[k].ventas.length} vales</small></span></div>`).join('') : '<small>No hay comisiones pendientes</small>'; }
+function salir(){ localStorage.removeItem('kairos_pass'); location.reload(); }
+if(savedPass && window.location.hostname.includes('onrender')){ document.getElementById('pass').value = savedPass; BASE = ''; PASS = savedPass; cargarTodo(); }
+</script>
+</body>
+</html>
