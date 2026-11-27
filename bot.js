@@ -119,6 +119,8 @@ async function start(){
   // === AQUI EMPIEZA A ESCUCHAR MENSAJES - ESTO ERA LO QUE FALTABA ===
   sock.ev.on('messages.upsert', async ({messages})=>{
     const msg=messages[0];
+        console.log('MENSAJE LLEGO:', msg.key.remoteJid);
+    
     if(!msg.message || msg.key.fromMe) return;
     const from=msg.key.remoteJid;
     const quienHabla=msg.key.participant || from;
