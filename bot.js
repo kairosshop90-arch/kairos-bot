@@ -82,7 +82,7 @@ const QRCode = require('qrcode');
 let ULTIMO_QR = '';
 
 
-const path = require('path');
+
 
 http.createServer(async(req,res)=>{
   try{
