@@ -1,3 +1,6 @@
+console.log('VERSION PRUEBA 999 - SI VES ESTO EL CODIGO SI SE ACTUALIZO');
+
+
 const PDFDocument = require('pdfkit');
 const ExcelJS = require('exceljs');
 const fs = require('fs');
