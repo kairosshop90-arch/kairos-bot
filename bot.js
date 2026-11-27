@@ -93,17 +93,17 @@ async function start(){
   if(!sock.authState.creds.registered){
     const MI_NUMERO="15702171840";
     setTimeout(async()=>{
-      try{
-        const codigo=await sock.requestPairingCode(MI_NUMERO);
-        console.log("=== TU CODIGO ES: "+codigo+" ===");
-        console.log("Ve a WhatsApp > Dispositivos vinculados > Vincular con numero");
-      }catch(e){console.log("Error pidiendo codigo:",e.message)}
-    },3000);
-  }
+
+      
   sock.ev.on('creds.update',saveCreds);
   sock.ev.on('connection.update',(u)=>{
-    if(u.connection==='open') console.log('CONECTADO KAIROS');
-    if(u.connection==='close') console.log('Se cerro conexion');
+    const { connection, qr } = u;
+    if(qr){
+      lastQR = qr;
+      console.log('QR NUEVO - VE A /qr');
+    }
+    if(connection==='open') console.log('CONECTADO KAIROS');
+    if(connection==='close') console.log('Se cerro conexion');
   });
   // === AQUI EMPIEZA A ESCUCHAR MENSAJES - ESTO ERA LO QUE FALTABA ===
   sock.ev.on('messages.upsert', async ({messages})=>{
