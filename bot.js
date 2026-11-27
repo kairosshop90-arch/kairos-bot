@@ -90,10 +90,7 @@ function buscarProductoEnAlmacen(almacen,txt){let lista=listaPorAlmacen(almacen)
 async function start(){
   const{state,saveCreds}=await useMultiFileAuthState('sesion-kairos');
   const sock=makeWASocket({logger:pino({level:'silent'}),auth:state,printQRInTerminal:false,browser:["Kairos Bot","Chrome","1.0.0"]});
-  if(!sock.authState.creds.registered){
-    const MI_NUMERO="15702171840";
-    setTimeout(async()=>{
-
+  
       
   sock.ev.on('creds.update',saveCreds);
   sock.ev.on('connection.update',(u)=>{
