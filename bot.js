@@ -23,7 +23,8 @@ http.createServer(async(req,res)=>{
     if(urlPath.startsWith('/api/')){
       res.writeHead(200,{'Content-Type':'application/json'});
       if(urlPath === '/api/catalogo' || urlPath === '/api/productos'){
-        return res.end(JSON.stringify({catalogo:CATALOGO||{}, productos:CATALOGO||{}, info_productos:INFO_PRODUCTOS||{}, tasas:{base:TASA_BASE||0,a1:TASA_A1||0,a2:TASA_A2||0,usd:TASA_USD||TASA_BASE||0}}));
+  return res.end(JSON.stringify({tasaUSD:TASA_USD||TASA_BASE||0, tasaA1:TASA_A1||0, tasaA2:TASA_A2||0, tasa:TASA_BASE||0, TASA_USD:TASA_USD||TASA_BASE||0, TASA_A1:TASA_A1||0, TASA_A2:TASA_A2||0, productos:CATALOGO||{}, catalogo:CATALOGO||{}, info_productos:INFO_PRODUCTOS||{}}));
+}
       }
       if(urlPath === '/api/tasas' || urlPath === '/api/tasa' || urlPath === '/api/config' || urlPath === '/api/info'){
         return res.end(JSON.stringify({tasa:TASA_BASE||0,TASA_BASE:TASA_BASE||0,tasa_a1:TASA_A1||0,TASA_A1:TASA_A1||0,tasa_a2:TASA_A2||0,TASA_A2:TASA_A2||0,tasa_usd:TASA_USD||TASA_BASE||0,TASA_USD:TASA_USD||TASA_BASE||0,tasa_eur:TASA_EUR||0,TASA_EUR:TASA_EUR||0,tasa_mlc:TASA_MLC||840.37,TASA_MLC:TASA_MLC||840.37,usd:TASA_USD||TASA_BASE||0,catalogo:CATALOGO||{},info_productos:INFO_PRODUCTOS||{}}));
