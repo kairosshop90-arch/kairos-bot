@@ -242,7 +242,50 @@ async function start(){
     if(esLouis&&me){const nv=parseInt(me[1],10);const v=VALES[nv];if(!v){await send('No encontre vale '+nv);return;}const com=comisionDe(v.productos);if(!COMISIONES[v.gestor])COMISIONES[v.gestor]={nombre:v.gestorNombre,total:0,ventas:[]};if(!COMISIONES[v.gestor].ventas.find(x=>x.numero===nv)){COMISIONES[v.gestor].ventas.push({numero:nv,fecha:new Date().toLocaleDateString('es-CU',{day:'2-digit',month:'2-digit'}),productos:v.productos.map(p=>p.nombre+' x'+p.cant).join(', '),comision:com,totalVale:v.totalUSD});COMISIONES[v.gestor].total+=com;COMISIONES[v.gestor].nombre=v.gestorNombre;guardarTodo();}await sock.sendMessage(v.gestor,{text:'VALE KAIROS-'+String(nv).padStart(3,'0')+' ENTREGADO. Tu comision: '+com+' MN\nTotal acumulado: '+COMISIONES[v.gestor].total.toLocaleString()+' MN\nEscribe *ver mis comisiones* para ver el detalle.'});await send('Entrega notificada. Comision: '+com);return;}
     if(text.includes('hola')||text.includes('buenas')||text.includes('bendecido')||text.includes('hey')||text.includes('buenos dias')||text.includes('buenas tardes')){delete PEDIDOS[from];ELIGIENDO_ALMACEN.delete(from);await send('Holaa Bienvenido a *KAIROS*\n\nSoy tu asistente, el que te ayuda a crear los vales para la tienda.\n\nYo me encargo de:\nCrear tus vales\nMandarlo a Louis\nCalcularte la mensajeria y el total\n\nPara empezar, escribe:\n*pedido* para hacer un pedido\n*mis vales* para ver tus vales\n*registrarme* si eres nuevo\n\nEmpezamos un pedido?');return;}
     if(text==='catálogo'||text==='catalogo'){ELIGIENDO_ALMACEN.add(from);delete PEDIDOS[from];await send('¿De qué almacén quieres?\n\n1. Almacén 1\n2. Almacén 2\n\nEscribe 1 o 2');return;}
+    
+if(esAdmin && rawText === 'resumen diario'){ await send(textoResumen('diario')); return; }
+if(esAdmin && rawText === 'resumen semanal'){ await send(textoResumen('semanal')); return; }
+    
     if(ELIGIENDO_ALMACEN.has(from)){if(text==='1'||text==='2'||text.includes('almacen 1')||text.includes('almacen 2')){let a=text.includes('2')?'2':'1';ELIGIENDO_ALMACEN.delete(from);PEDIDOS[from]={gestor:from,gestorNombre:GESTORES[from]||nombreGestor,productos:[],paso:'elegir_producto',actual:0,almacenActual:a};await send(textoCatalogoAlmacen(a)+'\nEscribe el numero o nombre del producto:');return;}else{await send('Escribe 1 para Almacén 1 o 2 para Almacén 2');return;}}
+
+function textoResumen(periodo){
+  let hoy = new Date(); hoy.setHours(0,0,0,0);
+  let desde = new Date(hoy);
+  if(periodo === 'semanal') desde.setDate(hoy.getDate() - 6);
+
+  let lineas = [];
+  let totalComision = 0;
+
+  // Recorremos COMISIONES que es donde guardas las ventas
+  for(let key of Object.keys(COMISIONES || {})){
+    let g = COMISIONES[key];
+    let nombreGestor = g.gestorNombre || g.nombre || key;
+    let ventas = g.ventas || [];
+    ventas.forEach(v => {
+      // Tu fecha viene como texto "27/11/2026"
+      let partes = String(v.fecha || '').split('/');
+      let f = partes.length === 3 ? new Date(partes[2], partes[1]-1, partes[0]) : new Date();
+      f.setHours(0,0,0,0);
+      let entra = periodo === 'diario' ? f.getTime() === hoy.getTime() : (f >= desde && f <= hoy);
+      if(!entra) return;
+
+      (v.productos || []).forEach(p => {
+        let cant = p.cant || p.cantidad || 1;
+        let comi = Number(p.comision || v.comision || 0);
+        totalComision += comi;
+        lineas.push(nombreGestor + ' | ' + v.numero + ' | ' + p.nombre + ' | ' + cant + ' | $' + comi + ' | ' + v.fecha);
+      });
+    });
+  }
+
+  if(lineas.length === 0) return 'No hay ventas ' + periodo;
+  let titulo = periodo === 'diario' ? 'RESUMEN DIARIO - ' + hoy.toLocaleDateString('es-CU') : 'RESUMEN SEMANAL - ' + desde.toLocaleDateString('es-CU') + ' al ' + hoy.toLocaleDateString('es-CU');
+  let t = titulo + '\n------------------------\nGestor | No.Venta | Producto | Cant | Comision | Fecha\n------------------------\n';
+  t += lineas.join('\n');
+  t += '\n------------------------\nTOTAL COMISIONES A COBRAR: $' + totalComision;
+  return t;
+}
+    
     if(!PEDIDOS[from]||PEDIDOS[from].paso==='elegir_producto'){if(!PEDIDOS[from]){await send('Escribe *catalogo* primero');return;}let ped0=PEDIDOS[from];let prod=buscarProductoEnAlmacen(ped0.almacenActual,rawText);if(prod){if(AGOTADOS.has(prod.nombre.toUpperCase())){await send('Ese producto esta AGOTADO.');return;}ped0.productos.push({nombre:prod.nombre,precioUSD:prod.precioUSD,cant:0,almacen:prod.almacen});ped0.actual=ped0.productos.length-1;ped0.paso='cantidad';let extra='';if(INFO_PRODUCTOS[prod.nombre.toUpperCase()])extra='\n\nINFO GUARDADA:\n'+INFO_PRODUCTOS[prod.nombre.toUpperCase()].texto.slice(0,800);await send(prod.nombre+' - '+prod.precioUSD+' USD (Almacén '+prod.almacen+')'+extra+'\n\nCuantos quieres? Ej: 2');return;}else{await send('No encontre ese producto en Almacén '+ped0.almacenActual+'.\n'+textoCatalogoAlmacen(ped0.almacenActual));return;}}
     const ped=PEDIDOS[from];if(ped){
     if(ped.paso==='cantidad'){const cant=parseInt(text);if(isNaN(cant)||cant<=0){await send('Pon un numero, ej: 2');return;}ped.productos[ped.actual].cant=cant;ped.paso='otra';await send('Quieres otra cosa? Escribe *SI* o *NO*');return;}
