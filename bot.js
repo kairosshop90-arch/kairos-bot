@@ -271,7 +271,7 @@ if(esAdmin && rawText === 'resumen semanal'){ await send(textoResumen('semanal')
 
       (v.productos || []).forEach(p => {
         let cant = p.cant || p.cantidad || 1;
-        let comi = Number(p.comision || v.comision || 0);
+       let comi = Number(comisionDe([p]) || 0);
         totalComision += comi;
         lineas.push(nombreGestor + ' | ' + v.numero + ' | ' + p.nombre + ' | ' + cant + ' | $' + comi + ' | ' + v.fecha);
       });
