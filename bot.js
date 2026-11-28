@@ -248,7 +248,7 @@ if(esAdmin && rawText === 'resumen semanal'){ await send(textoResumen('semanal')
     
     if(ELIGIENDO_ALMACEN.has(from)){if(text==='1'||text==='2'||text.includes('almacen 1')||text.includes('almacen 2')){let a=text.includes('2')?'2':'1';ELIGIENDO_ALMACEN.delete(from);PEDIDOS[from]={gestor:from,gestorNombre:GESTORES[from]||nombreGestor,productos:[],paso:'elegir_producto',actual:0,almacenActual:a};await send(textoCatalogoAlmacen(a)+'\nEscribe el numero o nombre del producto:');return;}else{await send('Escribe 1 para Almacén 1 o 2 para Almacén 2');return;}}
 
-function textoResumen(periodo){
+
   let hoy = new Date(); hoy.setHours(0,0,0,0);
   let desde = new Date(hoy);
   if(periodo === 'semanal') desde.setDate(hoy.getDate() - 6);
