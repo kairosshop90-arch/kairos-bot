@@ -85,7 +85,7 @@ async function actualizarTasa(){
     console.log('❌ Ninguna sirvio, me quedo con: ' + TASA_USD);
   }
 
-  if(!TASA_USD) TASA_USD = 960;
+  if(!TASA_USD){ TASA_USD = 960; PENDIENTE_TASA = true; console.log('⚠️ TASA PENDIENTE MANUAL - escribe: tasa 980'); try{ await sock.sendMessage(LOUIS_LID,{text:'⚠️ Fallaron ElToque y CubaDivisa. Estoy en 960 por ahora.\n\nEscribeme la tasa manual, ej:\n*tasa 980*'}); }catch(e){} }
   TASA_EUR = TASA_USD;
   TASA_BASE = TASA_USD;
   TASA_A1 = TASA_BASE + 5;
