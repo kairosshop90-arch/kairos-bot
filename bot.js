@@ -286,7 +286,7 @@ if(esAdmin && rawText === 'resumen semanal'){ await send(textoResumen('semanal')
 }
     
     if(!PEDIDOS[from]||PEDIDOS[from].paso==='elegir_producto'){if(!PEDIDOS[from]){await send('Escribe *catalogo* primero');return;}let ped0=PEDIDOS[from];let prod=buscarProductoEnAlmacen(ped0.almacenActual,rawText);if(prod){if(AGOTADOS.has(prod.nombre.toUpperCase())){await send('Ese producto esta AGOTADO.');return;}ped0.productos.push({nombre:prod.nombre,precioUSD:prod.precioUSD,cant:0,almacen:prod.almacen});ped0.actual=ped0.productos.length-1;ped0.paso='cantidad';let extra='';if(INFO_PRODUCTOS[prod.nombre.toUpperCase()])extra='\n\nINFO GUARDADA:\n'+INFO_PRODUCTOS[prod.nombre.toUpperCase()].texto.slice(0,800);await send(prod.nombre+' - '+prod.precioUSD+' USD (Almacén '+prod.almacen+')'+extra+'\n\nCuantos quieres? Ej: 2');return;}else{await send('No encontre ese producto en Almacén '+ped0.almacenActual+'.\n'+textoCatalogoAlmacen(ped0.almacenActual));return;}}
-function textoResumen(periodo){
+
     
     
     const ped=PEDIDOS[from];if(ped){
